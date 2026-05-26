@@ -1,26 +1,22 @@
 import { createFileRoute } from "@tanstack/react-router";
+import EnniesHairApp from "@/components/EnniesHair";
 
 export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "ENNIE'S HAIR — Premium Wigs, Bundles & Braiding Hair" },
+      {
+        name: "description",
+        content:
+          "Luxury 100% virgin & remy hair collection. Wigs, bundles, braiding hair and accessories — fast nationwide delivery from Lagos, Nigeria.",
+      },
+      { property: "og:title", content: "ENNIE'S HAIR — Confidence. Beauty. Luxury." },
+      { property: "og:description", content: "Premium hair collections for the modern woman." },
+    ],
+  }),
   component: Index,
 });
 
-// IMPORTANT: Replace this placeholder. For sites with multiple pages (About, Services, Contact, etc.),
-// create separate route files (about.tsx, services.tsx, contact.tsx) — don't put all pages in this file.
-function PlaceholderIndex() {
-  return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
-    </div>
-  );
-}
-
 function Index() {
-  return <PlaceholderIndex />;
+  return <EnniesHairApp />;
 }
