@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
+import { Link } from "@tanstack/react-router";
 import { StoreProvider, useStore } from "@/lib/store";
-import { products, formatNaira, type Category, type Product } from "@/lib/products";
+import { formatNaira, type Category, type Product } from "@/lib/products";
 import logo from "/logo.png?url";
 
 /* ---------- Navbar ---------- */
@@ -154,13 +155,14 @@ function Marquee() {
 const CATS: (Category | "All")[] = ["All", "Wigs", "Bundles", "Braiding", "Accessories"];
 
 function Shop() {
+  const { products } = useStore();
   const [cat, setCat] = useState<(Category | "All")>("All");
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     const t = setTimeout(() => setLoading(false), 600);
     return () => clearTimeout(t);
   }, []);
-  const filtered = useMemo(() => (cat === "All" ? products : products.filter((p) => p.type === cat)), [cat]);
+  const filtered = useMemo(() => (cat === "All" ? products : products.filter((p) => p.type === cat)), [cat, products]);
 
   return (
     <section id="shop" className="py-20 px-5 sm:px-8">
@@ -516,7 +518,7 @@ function ProductModal({ product }: { product: Product }) {
 
 /* ---------- Order modal ---------- */
 function OrderModal({ product, qty }: { product: Product; qty: number }) {
-  const { user, setModal, clearCart } = useStore();
+  const { user, setModal, clearCart, addOrder } = useStore();
   const [f, setF] = useState({
     name: user?.name ?? "",
     phone: user?.phone ?? "",
@@ -532,6 +534,14 @@ function OrderModal({ product, qty }: { product: Product; qty: number }) {
     // Paystack integration placeholder — would call PaystackPop here with PAYSTACK_PUBLIC_KEY.
     // EmailJS placeholder — would send admin notification with EmailJS keys.
     setTimeout(() => {
+      addOrder({
+        customerName: f.name,
+        customerEmail: f.email,
+        phone: f.phone,
+        address: f.address,
+        items: [{ productId: product.id, name: product.name, price: product.price, qty, image: product.image }],
+        total,
+      });
       clearCart();
       setModal({ kind: "thanks" });
     }, 600);
@@ -670,7 +680,7 @@ function WishlistModal() {
 
 /* ---------- Profile modal ---------- */
 function ProfileModal() {
-  const { user, wishlist, signOut, setModal } = useStore();
+  const { user, wishlist, signOut, setModal, isAdmin } = useStore();
   if (!user) return null;
   return (
     <div className="p-6 sm:p-8">
@@ -680,15 +690,27 @@ function ProfileModal() {
         </div>
         <h2 className="font-serif text-2xl mt-3">{user.name}</h2>
         <p className="text-sm text-muted-foreground">{user.email}</p>
+        {isAdmin && (
+          <span className="inline-block mt-2 text-[10px] uppercase tracking-[0.2em] px-2 py-1 rounded-full bg-burgundy/10 text-burgundy">Administrator</span>
+        )}
       </div>
       <div className="mt-6 space-y-2 text-sm">
         {user.phone && <Row icon="fa-phone" label={user.phone} />}
         {user.location && <Row icon="fa-location-dot" label={user.location} />}
         <Row icon="fa-heart" label={`${wishlist.length} item${wishlist.length === 1 ? "" : "s"} in wishlist`} />
       </div>
+      {isAdmin && (
+        <Link
+          to="/admin"
+          onClick={() => setModal({ kind: "none" })}
+          className="mt-4 w-full py-3 rounded-full bg-burgundy text-primary-foreground hover:bg-burgundy-dark transition flex items-center justify-center gap-2"
+        >
+          <i className="fa-solid fa-gauge-high" /> Open Admin Panel
+        </Link>
+      )}
       <button
         onClick={() => { signOut(); setModal({ kind: "none" }); }}
-        className="mt-6 w-full py-3 rounded-full border border-destructive/40 text-destructive hover:bg-destructive hover:text-destructive-foreground transition flex items-center justify-center gap-2"
+        className="mt-3 w-full py-3 rounded-full border border-destructive/40 text-destructive hover:bg-destructive hover:text-destructive-foreground transition flex items-center justify-center gap-2"
       >
         <i className="fa-solid fa-arrow-right-from-bracket" /> Sign Out
       </button>
