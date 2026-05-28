@@ -1,7 +1,9 @@
-import { createContext, useContext, useEffect, useState, ReactNode, useMemo } from "react";
-import { products as seedProducts, type Product } from "./products";
+import { createContext, useContext, useEffect, useState, ReactNode, useMemo, useCallback } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { dbToProduct, productToDb, type Product } from "./products";
 
 export interface User {
+  id: string;
   name: string;
   email: string;
   phone: string;
@@ -15,16 +17,24 @@ export interface CartItem {
 
 export type OrderStatus = "Pending" | "Processing" | "Shipped" | "Delivered";
 
+export interface OrderItem {
+  productId: string;
+  name: string;
+  price: number;
+  qty: number;
+  image: string;
+}
+
 export interface Order {
   id: string;
   customerName: string;
   customerEmail: string;
   phone: string;
   address: string;
-  items: { productId: string; name: string; price: number; qty: number; image: string }[];
+  items: OrderItem[];
   total: number;
   status: OrderStatus;
-  createdAt: number;
+  createdAt: string;
 }
 
 type ModalKind =
@@ -40,9 +50,9 @@ type ModalKind =
 interface StoreCtx {
   user: User | null;
   isAdmin: boolean;
-  signIn: (email: string, password: string) => string | null;
-  signUp: (u: User & { password: string }) => string | null;
-  signOut: () => void;
+  signIn: (email: string, password: string) => Promise<string | null>;
+  signUp: (u: { name: string; email: string; phone: string; location: string; password: string }) => Promise<string | null>;
+  signOut: () => Promise<void>;
   customers: User[];
   cart: CartItem[];
   addToCart: (p: Product, qty?: number) => void;
@@ -53,116 +63,155 @@ interface StoreCtx {
   inWishlist: (id: string) => boolean;
   modal: ModalKind;
   setModal: (m: ModalKind) => void;
-  // products
   products: Product[];
-  addProduct: (p: Omit<Product, "id">) => void;
-  updateProduct: (id: string, patch: Partial<Product>) => void;
-  deleteProduct: (id: string) => void;
-  // orders
+  refreshProducts: () => Promise<void>;
+  addProduct: (p: Omit<Product, "id">) => Promise<string | null>;
+  updateProduct: (id: string, patch: Partial<Product>) => Promise<string | null>;
+  deleteProduct: (id: string) => Promise<string | null>;
+  uploadProductImage: (file: File) => Promise<string>;
   orders: Order[];
-  addOrder: (o: Omit<Order, "id" | "createdAt" | "status">) => Order;
-  updateOrderStatus: (id: string, status: OrderStatus) => void;
+  addOrder: (o: Omit<Order, "id" | "createdAt" | "status">) => Promise<Order | null>;
+  updateOrderStatus: (id: string, status: OrderStatus) => Promise<void>;
 }
 
 const Ctx = createContext<StoreCtx | null>(null);
 
-// ----- Admin credentials (mock). Swap for Firebase Auth + custom claim later. -----
-export const ADMIN_EMAIL = "admin@ennieshair.com";
-export const ADMIN_PASSWORD = "EnniesAdmin2026";
-
-// Mock user db (in-memory) — would be replaced by Firebase Auth.
-const mockUsers = new Map<string, User & { password: string }>();
-// Seed the admin account.
-mockUsers.set(ADMIN_EMAIL, {
-  name: "Ennie (Admin)",
-  email: ADMIN_EMAIL,
-  phone: "+234 802 707 0110",
-  location: "Lagos HQ",
-  password: ADMIN_PASSWORD,
-});
-
-const LS = {
-  user: "eh_user",
-  products: "eh_products",
-  orders: "eh_orders",
-  customers: "eh_customers",
-};
+function mapOrder(r: any): Order {
+  return {
+    id: r.id,
+    customerName: r.customer_name,
+    customerEmail: r.customer_email,
+    phone: r.phone,
+    address: r.address,
+    items: r.items ?? [],
+    total: Number(r.total),
+    status: r.status as OrderStatus,
+    createdAt: r.created_at,
+  };
+}
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [wishlist, setWishlist] = useState<Product[]>([]);
   const [modal, setModal] = useState<ModalKind>({ kind: "none" });
-  const [products, setProducts] = useState<Product[]>(seedProducts);
+  const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [customers, setCustomers] = useState<User[]>([]);
 
-  // hydrate
-  useEffect(() => {
-    try {
-      const u = localStorage.getItem(LS.user);
-      if (u) setUser(JSON.parse(u));
-      const p = localStorage.getItem(LS.products);
-      if (p) setProducts(JSON.parse(p));
-      const o = localStorage.getItem(LS.orders);
-      if (o) setOrders(JSON.parse(o));
-      const c = localStorage.getItem(LS.customers);
-      if (c) {
-        const arr: (User & { password: string })[] = JSON.parse(c);
-        arr.forEach((x) => mockUsers.set(x.email.toLowerCase(), x));
-        setCustomers(arr.map(({ password: _p, ...rest }) => rest));
-      }
-    } catch {}
+  // --- Products (public read) ---
+  const refreshProducts = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("products")
+      .select("*")
+      .order("created_at", { ascending: true });
+    if (!error && data) setProducts(data.map(dbToProduct));
   }, []);
 
-  // persist
   useEffect(() => {
-    localStorage.setItem(LS.products, JSON.stringify(products));
-  }, [products]);
+    refreshProducts();
+  }, [refreshProducts]);
+
+  // --- Auth ---
+  const loadProfile = useCallback(async (uid: string) => {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", uid)
+      .maybeSingle();
+    const { data: roles } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", uid);
+    const admin = !!roles?.some((r: any) => r.role === "admin");
+    setIsAdmin(admin);
+    if (profile) {
+      setUser({
+        id: profile.id,
+        name: profile.name || "",
+        email: profile.email,
+        phone: profile.phone || "",
+        location: profile.location || "",
+      });
+    }
+  }, []);
+
   useEffect(() => {
-    localStorage.setItem(LS.orders, JSON.stringify(orders));
-  }, [orders]);
+    // Set listener FIRST, then check current session
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        // defer to avoid deadlock
+        setTimeout(() => loadProfile(session.user.id), 0);
+      } else {
+        setUser(null);
+        setIsAdmin(false);
+        setCustomers([]);
+        setOrders([]);
+      }
+    });
 
-  const persistCustomers = () => {
-    const arr = Array.from(mockUsers.values()).filter((u) => u.email !== ADMIN_EMAIL);
-    localStorage.setItem(LS.customers, JSON.stringify(arr));
-    setCustomers(arr.map(({ password: _p, ...rest }) => rest));
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) loadProfile(session.user.id);
+    });
+
+    return () => subscription.unsubscribe();
+  }, [loadProfile]);
+
+  // --- Load orders & customers based on role ---
+  const refreshOrders = useCallback(async () => {
+    if (!user) return setOrders([]);
+    const { data } = await supabase
+      .from("orders")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (data) setOrders(data.map(mapOrder));
+  }, [user]);
+
+  const refreshCustomers = useCallback(async () => {
+    if (!isAdmin) return setCustomers([]);
+    const { data } = await supabase.from("profiles").select("*");
+    if (data) {
+      setCustomers(
+        data.map((p: any) => ({
+          id: p.id,
+          name: p.name || "",
+          email: p.email,
+          phone: p.phone || "",
+          location: p.location || "",
+        })),
+      );
+    }
+  }, [isAdmin]);
+
+  useEffect(() => { refreshOrders(); }, [refreshOrders]);
+  useEffect(() => { refreshCustomers(); }, [refreshCustomers]);
+
+  const signIn = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    return error ? error.message : null;
   };
 
-  const persistUser = (u: User | null) => {
-    setUser(u);
-    if (u) localStorage.setItem(LS.user, JSON.stringify(u));
-    else localStorage.removeItem(LS.user);
+  const signUp: StoreCtx["signUp"] = async (d) => {
+    const redirectUrl = `${window.location.origin}/`;
+    const { error } = await supabase.auth.signUp({
+      email: d.email,
+      password: d.password,
+      options: {
+        emailRedirectTo: redirectUrl,
+        data: { name: d.name, phone: d.phone, location: d.location },
+      },
+    });
+    return error ? error.message : null;
   };
 
-  const signIn = (email: string, password: string) => {
-    const u = mockUsers.get(email.toLowerCase());
-    if (!u) return "No account found with that email.";
-    if (u.password !== password) return "Incorrect password.";
-    const { password: _p, ...rest } = u;
-    persistUser(rest);
-    return null;
-  };
+  const signOut = async () => { await supabase.auth.signOut(); };
 
-  const signUp = (data: User & { password: string }) => {
-    const key = data.email.toLowerCase();
-    if (mockUsers.has(key)) return "An account with that email already exists.";
-    mockUsers.set(key, data);
-    persistCustomers();
-    const { password: _p, ...rest } = data;
-    persistUser(rest);
-    return null;
-  };
-
-  const signOut = () => persistUser(null);
-
+  // --- Cart / wishlist (local) ---
   const addToCart = (p: Product, qty = 1) =>
     setCart((c) => {
       const existing = c.find((i) => i.product.id === p.id);
-      if (existing)
-        return c.map((i) =>
-          i.product.id === p.id ? { ...i, qty: Math.min(i.qty + qty, p.stock) } : i,
-        );
+      if (existing) return c.map((i) => i.product.id === p.id ? { ...i, qty: Math.min(i.qty + qty, p.stock) } : i);
       return [...c, { product: p, qty }];
     });
   const removeFromCart = (id: string) => setCart((c) => c.filter((i) => i.product.id !== id));
@@ -172,61 +221,82 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const toggleWishlist = (p: Product) =>
     setWishlist((w) => (w.some((x) => x.id === p.id) ? w.filter((x) => x.id !== p.id) : [...w, p]));
 
-  // products CRUD
-  const addProduct = (p: Omit<Product, "id">) =>
-    setProducts((prev) => [...prev, { ...p, id: `p_${Date.now()}` }]);
-  const updateProduct = (id: string, patch: Partial<Product>) =>
-    setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
-  const deleteProduct = (id: string) =>
-    setProducts((prev) => prev.filter((p) => p.id !== id));
+  // --- Product CRUD (admin) ---
+  const addProduct = async (p: Omit<Product, "id">) => {
+    const { error } = await supabase.from("products").insert(productToDb(p) as any);
+    if (error) return error.message;
+    await refreshProducts();
+    return null;
+  };
+  const updateProduct = async (id: string, patch: Partial<Product>) => {
+    const { error } = await supabase.from("products").update(productToDb(patch) as any).eq("id", id);
+    if (error) return error.message;
+    await refreshProducts();
+    return null;
+  };
+  const deleteProduct = async (id: string) => {
+    const { error } = await supabase.from("products").delete().eq("id", id);
+    if (error) return error.message;
+    await refreshProducts();
+    return null;
+  };
 
-  // orders
-  const addOrder: StoreCtx["addOrder"] = (o) => {
-    const order: Order = {
-      ...o,
-      id: `ORD-${Date.now().toString(36).toUpperCase()}`,
-      createdAt: Date.now(),
-      status: "Pending",
-    };
-    setOrders((prev) => [order, ...prev]);
-    // decrement stock
-    setProducts((prev) =>
-      prev.map((p) => {
-        const item = o.items.find((i) => i.productId === p.id);
-        return item ? { ...p, stock: Math.max(0, p.stock - item.qty) } : p;
+  const uploadProductImage = async (file: File) => {
+    const ext = file.name.split(".").pop() || "jpg";
+    const path = `${user?.id ?? "anon"}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const { error } = await supabase.storage.from("product-images").upload(path, file, {
+      cacheControl: "3600",
+      upsert: false,
+    });
+    if (error) throw error;
+    const { data } = supabase.storage.from("product-images").getPublicUrl(path);
+    return data.publicUrl;
+  };
+
+  // --- Orders ---
+  const addOrder: StoreCtx["addOrder"] = async (o) => {
+    if (!user) return null;
+    const { data, error } = await supabase
+      .from("orders")
+      .insert({
+        user_id: user.id,
+        customer_name: o.customerName,
+        customer_email: o.customerEmail || user.email,
+        phone: o.phone,
+        address: o.address,
+        items: o.items as any,
+        total: o.total,
+        status: "Pending",
+      } as any)
+      .select()
+      .single();
+    if (error || !data) return null;
+
+    // Decrement stock for each item (admin-only on server; fine if it fails for non-admin)
+    await Promise.all(
+      o.items.map(async (it) => {
+        const p = products.find((pr) => pr.id === it.productId);
+        if (p) await supabase.from("products").update({ stock: Math.max(0, p.stock - it.qty) }).eq("id", p.id);
       }),
     );
-    return order;
+    await refreshProducts();
+    await refreshOrders();
+    return mapOrder(data);
   };
-  const updateOrderStatus = (id: string, status: OrderStatus) =>
-    setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, status } : o)));
 
-  const isAdmin = !!user && user.email.toLowerCase() === ADMIN_EMAIL;
+  const updateOrderStatus = async (id: string, status: OrderStatus) => {
+    await supabase.from("orders").update({ status }).eq("id", id);
+    await refreshOrders();
+  };
 
   const value = useMemo<StoreCtx>(
     () => ({
-      user,
-      isAdmin,
-      signIn,
-      signUp,
-      signOut,
-      customers,
-      cart,
-      addToCart,
-      removeFromCart,
-      clearCart,
-      wishlist,
-      toggleWishlist,
-      inWishlist,
-      modal,
-      setModal,
-      products,
-      addProduct,
-      updateProduct,
-      deleteProduct,
-      orders,
-      addOrder,
-      updateOrderStatus,
+      user, isAdmin, signIn, signUp, signOut,
+      customers, cart, addToCart, removeFromCart, clearCart,
+      wishlist, toggleWishlist, inWishlist,
+      modal, setModal,
+      products, refreshProducts, addProduct, updateProduct, deleteProduct, uploadProductImage,
+      orders, addOrder, updateOrderStatus,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [user, isAdmin, customers, cart, wishlist, modal, products, orders],
