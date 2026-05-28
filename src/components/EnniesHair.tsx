@@ -368,18 +368,24 @@ function AuthModal({ initialTab }: { initialTab: "login" | "signup" }) {
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
   const [signupForm, setSignupForm] = useState({ name: "", email: "", phone: "", location: "", password: "" });
 
-  const submit = (e: React.FormEvent) => {
+  const [busy, setBusy] = useState(false);
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErr("");
-    if (tab === "login") {
-      const m = signIn(loginForm.email, loginForm.password);
-      if (m) return setErr(m);
-    } else {
-      if (!signupForm.name || !signupForm.email || !signupForm.password) return setErr("Please fill all required fields.");
-      const m = signUp(signupForm);
-      if (m) return setErr(m);
+    setBusy(true);
+    try {
+      if (tab === "login") {
+        const m = await signIn(loginForm.email, loginForm.password);
+        if (m) return setErr(m);
+      } else {
+        if (!signupForm.name || !signupForm.email || !signupForm.password) return setErr("Please fill all required fields.");
+        const m = await signUp(signupForm);
+        if (m) return setErr(m);
+      }
+      setModal({ kind: "none" });
+    } finally {
+      setBusy(false);
     }
-    setModal({ kind: "none" });
   };
 
   return (
@@ -528,23 +534,22 @@ function OrderModal({ product, qty }: { product: Product; qty: number }) {
   const [err, setErr] = useState("");
   const total = product.price * qty;
 
-  const pay = () => {
+  const pay = async () => {
     setErr("");
     if (!f.name || !f.phone || !f.address) return setErr("Please fill all required fields.");
     // Paystack integration placeholder — would call PaystackPop here with PAYSTACK_PUBLIC_KEY.
     // EmailJS placeholder — would send admin notification with EmailJS keys.
-    setTimeout(() => {
-      addOrder({
-        customerName: f.name,
-        customerEmail: f.email,
-        phone: f.phone,
-        address: f.address,
-        items: [{ productId: product.id, name: product.name, price: product.price, qty, image: product.image }],
-        total,
-      });
-      clearCart();
-      setModal({ kind: "thanks" });
-    }, 600);
+    const result = await addOrder({
+      customerName: f.name,
+      customerEmail: f.email,
+      phone: f.phone,
+      address: f.address,
+      items: [{ productId: product.id, name: product.name, price: product.price, qty, image: product.image }],
+      total,
+    });
+    if (!result) return setErr("Could not place order. Please try again.");
+    clearCart();
+    setModal({ kind: "thanks" });
   };
 
   return (
