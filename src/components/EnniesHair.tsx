@@ -407,26 +407,37 @@ function ModalShell({ children, onClose, wide = false }: { children: React.React
 /* ---------- Auth modal ---------- */
 function AuthModal({ initialTab }: { initialTab: "login" | "signup" }) {
   const { signIn, signUp, setModal } = useStore();
-  const [tab, setTab] = useState(initialTab);
+  const [tab, setTab] = useState<"login" | "signup" | "forgot">(initialTab);
   const [err, setErr] = useState("");
+  const [info, setInfo] = useState("");
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
   const [signupForm, setSignupForm] = useState({ name: "", email: "", phone: "", location: "", password: "" });
+  const [forgotEmail, setForgotEmail] = useState("");
 
   const [busy, setBusy] = useState(false);
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErr("");
+    setInfo("");
     setBusy(true);
     try {
       if (tab === "login") {
         const m = await signIn(loginForm.email, loginForm.password);
         if (m) return setErr(m);
-      } else {
+        setModal({ kind: "none" });
+      } else if (tab === "signup") {
         if (!signupForm.name || !signupForm.email || !signupForm.password) return setErr("Please fill all required fields.");
         const m = await signUp(signupForm);
         if (m) return setErr(m);
+        setModal({ kind: "none" });
+      } else {
+        if (!forgotEmail) return setErr("Enter your email.");
+        const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
+          redirectTo: `${window.location.origin}/reset-password`,
+        });
+        if (error) return setErr(error.message);
+        setInfo("Check your email for a reset link.");
       }
-      setModal({ kind: "none" });
     } finally {
       setBusy(false);
     }
@@ -435,35 +446,59 @@ function AuthModal({ initialTab }: { initialTab: "login" | "signup" }) {
   return (
     <div className="p-8">
       <button data-join hidden onClick={() => setTab("signup")} />
-      <h2 className="font-serif text-3xl text-center">Welcome</h2>
-      <div className="mt-6 grid grid-cols-2 p-1 rounded-full bg-beige">
-        {(["login", "signup"] as const).map((t) => (
-          <button key={t} onClick={() => setTab(t)} className={`py-2 text-sm rounded-full transition ${tab === t ? "bg-card text-burgundy shadow-sm" : "text-muted-foreground"}`}>
-            {t === "login" ? "Login" : "Sign Up"}
-          </button>
-        ))}
-      </div>
+      <h2 className="font-serif text-3xl text-center">
+        {tab === "forgot" ? "Reset password" : "Welcome"}
+      </h2>
+      {tab !== "forgot" && (
+        <div className="mt-6 grid grid-cols-2 p-1 rounded-full bg-beige">
+          {(["login", "signup"] as const).map((t) => (
+            <button key={t} type="button" onClick={() => { setTab(t); setErr(""); setInfo(""); }} className={`py-2 text-sm rounded-full transition ${tab === t ? "bg-card text-burgundy shadow-sm" : "text-muted-foreground"}`}>
+              {t === "login" ? "Login" : "Sign Up"}
+            </button>
+          ))}
+        </div>
+      )}
       <form onSubmit={submit} className="mt-6 space-y-3">
         {tab === "signup" && (
           <Input placeholder="Full name *" value={signupForm.name} onChange={(v) => setSignupForm({ ...signupForm, name: v })} />
         )}
-        <Input type="email" placeholder="Email *" value={tab === "login" ? loginForm.email : signupForm.email} onChange={(v) => (tab === "login" ? setLoginForm({ ...loginForm, email: v }) : setSignupForm({ ...signupForm, email: v }))} />
+        {tab === "forgot" ? (
+          <Input type="email" placeholder="Email *" value={forgotEmail} onChange={setForgotEmail} />
+        ) : (
+          <Input type="email" placeholder="Email *" value={tab === "login" ? loginForm.email : signupForm.email} onChange={(v) => (tab === "login" ? setLoginForm({ ...loginForm, email: v }) : setSignupForm({ ...signupForm, email: v }))} />
+        )}
         {tab === "signup" && (
           <>
             <Input placeholder="Phone number" value={signupForm.phone} onChange={(v) => setSignupForm({ ...signupForm, phone: v })} />
             <Input placeholder="Location / Address" value={signupForm.location} onChange={(v) => setSignupForm({ ...signupForm, location: v })} />
           </>
         )}
-        <Input type="password" placeholder="Password *" value={tab === "login" ? loginForm.password : signupForm.password} onChange={(v) => (tab === "login" ? setLoginForm({ ...loginForm, password: v }) : setSignupForm({ ...signupForm, password: v }))} />
+        {tab !== "forgot" && (
+          <Input type="password" placeholder="Password *" value={tab === "login" ? loginForm.password : signupForm.password} onChange={(v) => (tab === "login" ? setLoginForm({ ...loginForm, password: v }) : setSignupForm({ ...signupForm, password: v }))} />
+        )}
         {err && <p className="text-sm text-destructive">{err}</p>}
-        <button className="w-full py-3 rounded-full bg-burgundy text-primary-foreground hover:bg-burgundy-dark transition">
-          {tab === "login" ? "Sign In" : "Create Account"}
+        {info && <p className="text-sm text-burgundy">{info}</p>}
+        <button disabled={busy} className="w-full py-3 rounded-full bg-burgundy text-primary-foreground hover:bg-burgundy-dark transition disabled:opacity-60">
+          {busy ? "Please wait…" : tab === "login" ? "Sign In" : tab === "signup" ? "Create Account" : "Send reset link"}
         </button>
+        {tab === "login" && (
+          <p className="text-center text-xs">
+            <button type="button" onClick={() => { setTab("forgot"); setErr(""); setInfo(""); }} className="text-burgundy hover:underline">
+              Forgot password?
+            </button>
+          </p>
+        )}
         <p className="text-center text-sm text-muted-foreground">
-          {tab === "login" ? "No account?" : "Already have an account?"}{" "}
-          <button type="button" onClick={() => setTab(tab === "login" ? "signup" : "login")} className="text-burgundy hover:underline">
-            {tab === "login" ? "Sign up" : "Sign in"}
-          </button>
+          {tab === "forgot" ? (
+            <>
+              Remembered it?{" "}
+              <button type="button" onClick={() => { setTab("login"); setErr(""); setInfo(""); }} className="text-burgundy hover:underline">Back to login</button>
+            </>
+          ) : tab === "login" ? (
+            <>No account? <button type="button" onClick={() => setTab("signup")} className="text-burgundy hover:underline">Sign up</button></>
+          ) : (
+            <>Already have an account? <button type="button" onClick={() => setTab("login")} className="text-burgundy hover:underline">Sign in</button></>
+          )}
         </p>
       </form>
     </div>
