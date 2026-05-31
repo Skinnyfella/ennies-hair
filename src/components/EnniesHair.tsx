@@ -1,8 +1,52 @@
 import { useState, useEffect, useMemo } from "react";
 import { Link } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import emailjs from "@emailjs/browser";
 import { StoreProvider, useStore } from "@/lib/store";
 import { formatNaira, type Category, type Product } from "@/lib/products";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  getPublicConfig,
+  verifyPaystackAndCreateOrder,
+} from "@/lib/payments.functions";
 import logo from "/logo.png?url";
+
+declare global {
+  interface Window {
+    PaystackPop?: {
+      setup: (opts: {
+        key: string;
+        email: string;
+        amount: number;
+        currency?: string;
+        ref?: string;
+        callback: (resp: { reference: string }) => void;
+        onClose: () => void;
+      }) => { openIframe: () => void };
+    };
+  }
+}
+
+function loadPaystackScript(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (typeof window === "undefined") return reject(new Error("No window"));
+    if (window.PaystackPop) return resolve();
+    const existing = document.querySelector<HTMLScriptElement>(
+      'script[src="https://js.paystack.co/v1/inline.js"]',
+    );
+    if (existing) {
+      existing.addEventListener("load", () => resolve());
+      existing.addEventListener("error", () => reject(new Error("Failed to load Paystack")));
+      return;
+    }
+    const s = document.createElement("script");
+    s.src = "https://js.paystack.co/v1/inline.js";
+    s.async = true;
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error("Failed to load Paystack"));
+    document.body.appendChild(s);
+  });
+}
 
 /* ---------- Navbar ---------- */
 function Navbar() {
