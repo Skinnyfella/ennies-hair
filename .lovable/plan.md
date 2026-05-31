@@ -1,56 +1,55 @@
-# Admin Dashboard for ENNIE'S HAIR
 
-Add a hidden admin role on top of the existing mock auth so you can manage the storefront from inside the same site.
+## 1) Forgot password (Supabase)
 
-## Admin Credentials (mock)
+- Add a "Forgot password?" link on the Login tab of the Welcome dialog.
+- New small dialog/view: email input → `supabase.auth.resetPasswordForEmail(email, { redirectTo: ${origin}/reset-password })`.
+- New public route `src/routes/reset-password.tsx`: detects the `type=recovery` hash, shows a "new password" form, calls `supabase.auth.updateUser({ password })`, then redirects to login.
+- No DB changes. Supabase sends the email via its built-in template.
 
-- **Email:** `admin@ennieshair.com`
-- **Password:** `EnniesAdmin2026`
+## 2) EmailJS — admin order notification
 
-These are seeded into the in-memory user store on app load. Clearly marked in `store.tsx` so you can swap them for Firebase Auth + a real `isAdmin` claim later.
+- Install `@emailjs/browser`.
+- After a successful order insert in `src/lib/store.tsx` (`addOrder`), fire `emailjs.send(...)` to `toyinboayanfedavid@gmail.com`.
+- Template variables sent:
+  - `customer_name`, `customer_email`, `customer_phone`, `address`
+  - `order_id`, `order_total`
+  - `items_text` — pre-formatted list like `- Brazilian Body Wave 18" x1 — ₦45,000`
+- Keys read from `import.meta.env`:
+  - `VITE_EMAILJS_SERVICE_ID`
+  - `VITE_EMAILJS_TEMPLATE_ID`
+  - `VITE_EMAILJS_PUBLIC_KEY`
+- I'll add the 3 keys via the secrets tool so you can paste them in once. If they're missing at runtime, we skip silently (order still succeeds).
+- I'll give you the exact EmailJS template body to paste into your EmailJS dashboard.
 
-## What the admin can do
+## 3) Paystack — server-verified checkout
 
-1. **Dashboard overview** — total products, low-stock count, total orders, total revenue.
-2. **Products / Inventory**
-   - Table of all products: image, name, category, price, stock, status (In stock / Low / Out).
-   - Add new product (name, category, price, original price, stock, length, texture, hair type, description, image URL).
-   - Edit any field inline or via modal.
-   - Delete product (with confirm).
-   - Low-stock highlight (stock ≤ 3 shown in burgundy).
-3. **Orders**
-   - Every checkout in `OrderModal` now also pushes an order record `{ id, customer, phone, location, items, total, status, createdAt }` into the store.
-   - Admin sees a table: order id, customer, items, total, date, status.
-   - Status dropdown: Pending → Processing → Shipped → Delivered.
-   - Click row to expand full details (items + delivery address).
-4. **Customers** — list of signed-up users (name, email, phone, location, # of orders).
+Flow:
 
-## Route & access
+```text
+Checkout button
+  → load Paystack inline JS (https://js.paystack.co/v1/inline.js)
+  → PaystackPop.setup({ key: VITE_PAYSTACK_PUBLIC_KEY, email, amount, ref })
+  → onSuccess(ref) → call server fn verifyPaystack({ reference })
+       → server fetches https://api.paystack.co/transaction/verify/:ref
+         with Authorization: Bearer PAYSTACK_SECRET_KEY
+       → if status === 'success' AND amount matches → insert order (status='Paid')
+       → else → throw, show error toast
+```
 
-- New route `src/routes/admin.tsx` → `/admin`.
-- Guarded: if `user?.email !== ADMIN_EMAIL`, redirect to `/` and open the auth modal.
-- Admin layout is separate from the storefront — sidebar (Dashboard / Products / Orders / Customers) + top bar with "Back to store" and Sign Out. Matches the burgundy/beige luxury theme.
+Files:
+- `src/lib/paystack.functions.ts` — `verifyAndPlaceOrder` server fn (uses `requireSupabaseAuth`, reads `process.env.PAYSTACK_SECRET_KEY`, verifies amount + currency, then inserts the order server-side using the authenticated client so RLS still applies).
+- Update `src/components/EnniesHair.tsx` checkout to launch Paystack instead of the current "Place Order" insert. Old client-side `addOrder` insert path is removed for the paid flow; EmailJS notification now runs after server verification returns success.
+- Secrets requested via add_secret:
+  - `VITE_PAYSTACK_PUBLIC_KEY` (pk_test_… / pk_live_…)
+  - `PAYSTACK_SECRET_KEY` (sk_test_… / sk_live_…)
 
-## Store changes (`src/lib/store.tsx`)
+Currency: NGN (matches the ₦ pricing already in the app). Amount sent to Paystack is `total * 100` (kobo).
 
-- Seed admin user in `mockUsers` on init.
-- Add `isAdmin` derived getter.
-- Move `products` from static const into store state so admin edits are reflected on the storefront live.
-- Add `orders: Order[]` + `addOrder`, `updateOrderStatus`.
-- Add `addProduct`, `updateProduct`, `deleteProduct`.
-- Persist products & orders to `localStorage` (mock; replace with Firestore later).
+## Order of operations
 
-## Files
+1. Implement forgot password UI + `/reset-password` route (no secrets needed).
+2. Ask you for: EmailJS service id / template id / public key, Paystack public key, Paystack secret key — via the secure secret prompt.
+3. Wire EmailJS + Paystack server fn + checkout.
+4. Give you the EmailJS template snippet to paste in your EmailJS dashboard.
 
-- **new** `src/routes/admin.tsx` — guard + layout shell with tab state.
-- **new** `src/components/admin/AdminDashboard.tsx` — stat cards.
-- **new** `src/components/admin/AdminProducts.tsx` — table + add/edit modal.
-- **new** `src/components/admin/AdminOrders.tsx` — orders table + status updates.
-- **new** `src/components/admin/AdminCustomers.tsx` — customer list.
-- **edit** `src/lib/store.tsx` — admin seed, products/orders state, CRUD actions.
-- **edit** `src/lib/products.ts` — export seed data; consumers read from store.
-- **edit** `src/components/EnniesHair.tsx` — `OrderModal` calls `addOrder`; product grid reads from store; show small "Admin" link in profile modal when `isAdmin`.
-
-## Out of scope
-
-- Real Firebase Auth role rules, image upload to Firebase Storage, analytics charts. All clearly marked TODO so wiring is a single-file change later.
+No database migrations are needed. Existing `orders` table already has all the fields we use; only the `status` value changes from `Pending` to `Paid` on successful verification.
