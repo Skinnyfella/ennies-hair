@@ -603,7 +603,9 @@ function ProductModal({ product }: { product: Product }) {
 
 /* ---------- Order modal ---------- */
 function OrderModal({ product, qty }: { product: Product; qty: number }) {
-  const { user, setModal, clearCart, addOrder } = useStore();
+  const { user, setModal, clearCart, refreshProducts } = useStore();
+  const verifyOrder = useServerFn(verifyPaystackAndCreateOrder);
+  const fetchConfig = useServerFn(getPublicConfig);
   const [f, setF] = useState({
     name: user?.name ?? "",
     phone: user?.phone ?? "",
@@ -611,24 +613,92 @@ function OrderModal({ product, qty }: { product: Product; qty: number }) {
     email: user?.email ?? "",
   });
   const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
   const total = product.price * qty;
+
+  const items = [{ productId: product.id, name: product.name, price: product.price, qty, image: product.image }];
+
+  const sendAdminEmail = async (cfg: Awaited<ReturnType<typeof fetchConfig>>, orderId: string) => {
+    const ej = cfg.emailjs;
+    if (!ej.serviceId || !ej.templateId || !ej.publicKey) return;
+    const itemsText = items
+      .map((it) => `- ${it.name} x${it.qty} — ${formatNaira(it.price * it.qty)}`)
+      .join("\n");
+    try {
+      await emailjs.send(
+        ej.serviceId,
+        ej.templateId,
+        {
+          customer_name: f.name,
+          customer_email: f.email || user?.email || "",
+          customer_phone: f.phone,
+          address: f.address,
+          order_id: orderId,
+          order_total: formatNaira(total),
+          items_text: itemsText,
+        },
+        { publicKey: ej.publicKey },
+      );
+    } catch (e) {
+      console.error("EmailJS failed", e);
+    }
+  };
 
   const pay = async () => {
     setErr("");
     if (!f.name || !f.phone || !f.address) return setErr("Please fill all required fields.");
-    // Paystack integration placeholder — would call PaystackPop here with PAYSTACK_PUBLIC_KEY.
-    // EmailJS placeholder — would send admin notification with EmailJS keys.
-    const result = await addOrder({
-      customerName: f.name,
-      customerEmail: f.email,
-      phone: f.phone,
-      address: f.address,
-      items: [{ productId: product.id, name: product.name, price: product.price, qty, image: product.image }],
-      total,
-    });
-    if (!result) return setErr("Could not place order. Please try again.");
-    clearCart();
-    setModal({ kind: "thanks" });
+    if (!f.email && !user?.email) return setErr("Email is required for payment.");
+    setBusy(true);
+    try {
+      const cfg = await fetchConfig();
+      if (!cfg.paystackPublicKey) {
+        setErr("Payment is not configured yet. Please contact the store.");
+        return;
+      }
+      await loadPaystackScript();
+      if (!window.PaystackPop) throw new Error("Paystack not loaded");
+
+      const handler = window.PaystackPop.setup({
+        key: cfg.paystackPublicKey,
+        email: f.email || user!.email,
+        amount: Math.round(total * 100),
+        currency: "NGN",
+        callback: (resp) => {
+          // Verify on server, then save order
+          (async () => {
+            try {
+              const order = await verifyOrder({
+                data: {
+                  reference: resp.reference,
+                  customerName: f.name,
+                  customerEmail: f.email || user!.email,
+                  phone: f.phone,
+                  address: f.address,
+                  total,
+                  items,
+                },
+              });
+              await sendAdminEmail(cfg, order.id);
+              await refreshProducts();
+              clearCart();
+              setModal({ kind: "thanks" });
+            } catch (e: any) {
+              setErr(e?.message ?? "Payment verification failed.");
+            } finally {
+              setBusy(false);
+            }
+          })();
+        },
+        onClose: () => {
+          setBusy(false);
+          setErr("Payment cancelled.");
+        },
+      });
+      handler.openIframe();
+    } catch (e: any) {
+      setBusy(false);
+      setErr(e?.message ?? "Could not start payment.");
+    }
   };
 
   return (
@@ -649,10 +719,10 @@ function OrderModal({ product, qty }: { product: Product; qty: number }) {
         <Input placeholder="Full name *" value={f.name} onChange={(v) => setF({ ...f, name: v })} />
         <Input placeholder="Phone number *" value={f.phone} onChange={(v) => setF({ ...f, phone: v })} />
         <Input placeholder="Delivery address *" value={f.address} onChange={(v) => setF({ ...f, address: v })} />
-        <Input type="email" placeholder="Email (for receipt)" value={f.email} onChange={(v) => setF({ ...f, email: v })} />
+        <Input type="email" placeholder="Email (for receipt) *" value={f.email} onChange={(v) => setF({ ...f, email: v })} />
         {err && <p className="text-sm text-destructive">{err}</p>}
-        <button onClick={pay} className="w-full py-3.5 rounded-full bg-burgundy text-primary-foreground hover:bg-burgundy-dark transition flex items-center justify-center gap-2 font-medium">
-          <i className="fa-solid fa-lock" /> Pay {formatNaira(total)} with Paystack
+        <button disabled={busy} onClick={pay} className="w-full py-3.5 rounded-full bg-burgundy text-primary-foreground hover:bg-burgundy-dark transition flex items-center justify-center gap-2 font-medium disabled:opacity-60">
+          <i className="fa-solid fa-lock" /> {busy ? "Processing…" : `Pay ${formatNaira(total)} with Paystack`}
         </button>
         <p className="text-center text-xs text-muted-foreground">Secured by Paystack · Your info is safe</p>
       </div>
