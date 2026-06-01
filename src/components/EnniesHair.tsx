@@ -5,12 +5,10 @@ import emailjs from "@emailjs/browser";
 import { StoreProvider, useStore } from "@/lib/store";
 import { formatNaira, type Category, type Product } from "@/lib/products";
 import { supabase } from "@/integrations/supabase/client";
-import { verifyPaystackAndCreateOrder } from "@/lib/payments.functions";
-
-const EMAILJS_SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID ?? "";
-const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID ?? "";
-const EMAILJS_PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY ?? "";
-const PAYSTACK_PUBLIC_KEY = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY ?? "";
+import {
+  getPublicConfig,
+  verifyPaystackAndCreateOrder,
+} from "@/lib/payments.functions";
 import logo from "/logo.png?url";
 
 declare global {
@@ -622,6 +620,7 @@ function ProductModal({ product }: { product: Product }) {
 function OrderModal({ product, qty }: { product: Product; qty: number }) {
   const { user, setModal, clearCart, refreshProducts } = useStore();
   const verifyOrder = useServerFn(verifyPaystackAndCreateOrder);
+  const fetchConfig = useServerFn(getPublicConfig);
   const [f, setF] = useState({
     name: user?.name ?? "",
     phone: user?.phone ?? "",
@@ -634,18 +633,16 @@ function OrderModal({ product, qty }: { product: Product; qty: number }) {
 
   const items = [{ productId: product.id, name: product.name, price: product.price, qty, image: product.image }];
 
-  const sendAdminEmail = async (orderId: string) => {
-    if (!EMAILJS_SERVICE_ID || !EMAILJS_TEMPLATE_ID || !EMAILJS_PUBLIC_KEY) {
-      console.warn("EmailJS not configured — skipping admin notification");
-      return;
-    }
+  const sendAdminEmail = async (cfg: Awaited<ReturnType<typeof fetchConfig>>, orderId: string) => {
+    const ej = cfg.emailjs;
+    if (!ej.serviceId || !ej.templateId || !ej.publicKey) return;
     const itemsText = items
       .map((it) => `- ${it.name} x${it.qty} — ${formatNaira(it.price * it.qty)}`)
       .join("\n");
     try {
       await emailjs.send(
-        EMAILJS_SERVICE_ID,
-        EMAILJS_TEMPLATE_ID,
+        ej.serviceId,
+        ej.templateId,
         {
           customer_name: f.name,
           customer_email: f.email || user?.email || "",
@@ -655,7 +652,7 @@ function OrderModal({ product, qty }: { product: Product; qty: number }) {
           order_total: formatNaira(total),
           items_text: itemsText,
         },
-        { publicKey: EMAILJS_PUBLIC_KEY },
+        { publicKey: ej.publicKey },
       );
     } catch (e) {
       console.error("EmailJS failed", e);
@@ -666,16 +663,18 @@ function OrderModal({ product, qty }: { product: Product; qty: number }) {
     setErr("");
     if (!f.name || !f.phone || !f.address) return setErr("Please fill all required fields.");
     if (!f.email && !user?.email) return setErr("Email is required for payment.");
-    if (!PAYSTACK_PUBLIC_KEY) {
-      return setErr("Payment is not configured yet. Please contact the store.");
-    }
     setBusy(true);
     try {
+      const cfg = await fetchConfig();
+      if (!cfg.paystackPublicKey) {
+        setErr("Payment is not configured yet. Please contact the store.");
+        return;
+      }
       await loadPaystackScript();
       if (!window.PaystackPop) throw new Error("Paystack not loaded");
 
       const handler = window.PaystackPop.setup({
-        key: PAYSTACK_PUBLIC_KEY,
+        key: cfg.paystackPublicKey,
         email: f.email || user!.email,
         amount: Math.round(total * 100),
         currency: "NGN",
@@ -694,7 +693,7 @@ function OrderModal({ product, qty }: { product: Product; qty: number }) {
                   items,
                 },
               });
-              await sendAdminEmail(order.id);
+              await sendAdminEmail(cfg, order.id);
               await refreshProducts();
               clearCart();
               setModal({ kind: "thanks" });
