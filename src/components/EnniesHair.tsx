@@ -899,10 +899,20 @@ function Modals() {
   );
 }
 
+function AdminRedirector() {
+  const { isAdmin, user } = useStore();
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (user && isAdmin) navigate({ to: "/admin" });
+  }, [user, isAdmin, navigate]);
+  return null;
+}
+
 export default function EnniesHairApp() {
   return (
     <StoreProvider>
       <div className="min-h-screen flex flex-col">
+        <AdminRedirector />
         <Navbar />
         <main className="flex-1">
           <LogoBanner />
