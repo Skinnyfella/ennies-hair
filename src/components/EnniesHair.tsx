@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import emailjs from "@emailjs/browser";
 import { StoreProvider, useStore } from "@/lib/store";
@@ -251,46 +251,59 @@ function ProductCard({ product }: { product: Product }) {
   const { setModal, user, toggleWishlist, inWishlist } = useStore();
   const discount = Math.round((1 - product.price / product.originalPrice) * 100);
   const fav = inWishlist(product.id);
+  const outOfStock = product.stock <= 0;
   return (
     <article
-      onClick={() => setModal({ kind: "product", product })}
-      className="group cursor-pointer rounded-2xl bg-card border border-border overflow-hidden hover:border-burgundy hover:shadow-xl hover:shadow-burgundy/10 transition fade-up"
+      onClick={() => { if (!outOfStock) setModal({ kind: "product", product }); }}
+      aria-disabled={outOfStock}
+      className={`group rounded-2xl bg-card border border-border overflow-hidden transition fade-up ${
+        outOfStock
+          ? "opacity-50 grayscale cursor-not-allowed"
+          : "cursor-pointer hover:border-burgundy hover:shadow-xl hover:shadow-burgundy/10"
+      }`}
     >
       <div className="relative aspect-[3/4] overflow-hidden bg-beige">
         <img
           src={product.image}
           alt={product.name}
           loading="lazy"
-          className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+          className={`w-full h-full object-cover transition duration-500 ${outOfStock ? "" : "group-hover:scale-105"}`}
         />
-        {discount > 0 && (
+        {discount > 0 && !outOfStock && (
           <span className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-burgundy text-primary-foreground text-xs font-semibold">
             -{discount}%
           </span>
         )}
-        <span
-          className={`absolute top-3 right-12 px-2.5 py-1 rounded-full text-[10px] font-semibold ${
-            product.stock <= 3
-              ? "bg-destructive/10 text-destructive"
-              : "bg-success/10 text-success"
-          }`}
-          style={{ color: product.stock <= 3 ? undefined : "var(--success)" }}
-        >
-          {product.stock <= 3 ? `Only ${product.stock} left!` : `${product.stock} in stock`}
-        </span>
-        <button
-          aria-label="Add to wishlist"
-          onClick={(e) => {
-            e.stopPropagation();
-            if (!user) return setModal({ kind: "auth", tab: "login" });
-            toggleWishlist(product);
-          }}
-          className={`absolute top-3 right-3 w-9 h-9 grid place-items-center rounded-full backdrop-blur bg-card/80 border border-border transition ${
-            fav ? "text-burgundy" : "text-foreground hover:text-burgundy"
-          }`}
-        >
-          <i className={fav ? "fa-solid fa-heart" : "fa-regular fa-heart"} />
-        </button>
+        {outOfStock ? (
+          <span className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-foreground text-background text-[10px] font-semibold uppercase tracking-wider">
+            Out of stock
+          </span>
+        ) : (
+          <span
+            className={`absolute top-3 right-12 px-2.5 py-1 rounded-full text-[10px] font-semibold ${
+              product.stock <= 3
+                ? "bg-destructive/10 text-destructive"
+                : "bg-success/10 text-success"
+            }`}
+          >
+            {product.stock <= 3 ? `Only ${product.stock} left!` : `${product.stock} in stock`}
+          </span>
+        )}
+        {!outOfStock && (
+          <button
+            aria-label="Add to wishlist"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!user) return setModal({ kind: "auth", tab: "login" });
+              toggleWishlist(product);
+            }}
+            className={`absolute top-3 right-3 w-9 h-9 grid place-items-center rounded-full backdrop-blur bg-card/80 border border-border transition ${
+              fav ? "text-burgundy" : "text-foreground hover:text-burgundy"
+            }`}
+          >
+            <i className={fav ? "fa-solid fa-heart" : "fa-regular fa-heart"} />
+          </button>
+        )}
       </div>
       <div className="p-4">
         <div className="text-[11px] uppercase tracking-wider text-muted-foreground">{product.type}</div>
@@ -300,13 +313,15 @@ function ProductCard({ product }: { product: Product }) {
           <span className="text-xs text-muted-foreground line-through">{formatNaira(product.originalPrice)}</span>
         </div>
         <button
+          disabled={outOfStock}
           onClick={(e) => {
             e.stopPropagation();
+            if (outOfStock) return;
             setModal({ kind: "product", product });
           }}
-          className="mt-4 w-full py-2.5 rounded-full bg-beige hover:bg-burgundy hover:text-primary-foreground text-burgundy text-sm font-medium transition flex items-center justify-center gap-2"
+          className="mt-4 w-full py-2.5 rounded-full bg-beige hover:bg-burgundy hover:text-primary-foreground text-burgundy text-sm font-medium transition flex items-center justify-center gap-2 disabled:hover:bg-beige disabled:hover:text-burgundy disabled:cursor-not-allowed"
         >
-          Order <i className="fa-solid fa-arrow-right text-xs" />
+          {outOfStock ? "Sold Out" : <>Order <i className="fa-solid fa-arrow-right text-xs" /></>}
         </button>
       </div>
     </article>
@@ -899,10 +914,20 @@ function Modals() {
   );
 }
 
+function AdminRedirector() {
+  const { isAdmin, user } = useStore();
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (user && isAdmin) navigate({ to: "/admin" });
+  }, [user, isAdmin, navigate]);
+  return null;
+}
+
 export default function EnniesHairApp() {
   return (
     <StoreProvider>
       <div className="min-h-screen flex flex-col">
+        <AdminRedirector />
         <Navbar />
         <main className="flex-1">
           <LogoBanner />

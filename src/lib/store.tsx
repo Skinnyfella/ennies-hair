@@ -185,6 +185,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [isAdmin]);
 
   useEffect(() => { refreshOrders(); }, [refreshOrders]);
+
+  // --- 30-minute inactivity auto-logout ---
+  useEffect(() => {
+    if (!user) return;
+    let timer: ReturnType<typeof setTimeout>;
+    const reset = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => { supabase.auth.signOut(); }, 30 * 60 * 1000);
+    };
+    const events = ["mousemove", "keydown", "click", "scroll", "touchstart"];
+    events.forEach((e) => window.addEventListener(e, reset, { passive: true }));
+    reset();
+    return () => {
+      clearTimeout(timer);
+      events.forEach((e) => window.removeEventListener(e, reset));
+    };
+  }, [user]);
   useEffect(() => { refreshCustomers(); }, [refreshCustomers]);
 
   const signIn = async (email: string, password: string) => {
