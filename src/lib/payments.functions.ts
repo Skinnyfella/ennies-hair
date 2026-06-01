@@ -2,18 +2,6 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-// Public config — safe to expose (publishable/public keys only)
-export const getPublicConfig = createServerFn({ method: "GET" }).handler(async () => {
-  return {
-    paystackPublicKey: process.env.PAYSTACK_PUBLIC_KEY ?? "",
-    emailjs: {
-      serviceId: process.env.EMAILJS_SERVICE_ID ?? "",
-      templateId: process.env.EMAILJS_TEMPLATE_ID ?? "",
-      publicKey: process.env.EMAILJS_PUBLIC_KEY ?? "",
-    },
-  };
-});
-
 const OrderItemSchema = z.object({
   productId: z.string().min(1),
   name: z.string().min(1).max(255),
