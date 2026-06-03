@@ -143,6 +143,17 @@ export const verifyPaystackAndCreateOrder = createServerFn({ method: "POST" })
       }
     }
 
+    // Best-effort admin notification via Resend
+    await sendAdminEmailResend({
+      orderId: inserted.id,
+      customerName: data.customerName,
+      customerEmail: data.customerEmail,
+      phone: data.phone,
+      address: data.address,
+      total: data.total,
+      items: data.items,
+    });
+
     return {
       id: inserted.id,
       createdAt: inserted.created_at,
