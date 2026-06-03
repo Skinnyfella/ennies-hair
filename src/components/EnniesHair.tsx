@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import emailjs from "@emailjs/browser";
+
 import { StoreProvider, useStore } from "@/lib/store";
 import { formatNaira, type Category, type Product } from "@/lib/products";
 import { supabase } from "@/integrations/supabase/client";
