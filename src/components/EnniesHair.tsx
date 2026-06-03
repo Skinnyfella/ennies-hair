@@ -671,7 +671,7 @@ function OrderModal({ product, qty }: { product: Product; qty: number }) {
                   items,
                 },
               });
-              await sendAdminEmail(cfg, order.id);
+              // Admin email is sent server-side inside verifyPaystackAndCreateOrder
               await refreshProducts();
               clearCart();
               setModal({ kind: "thanks" });
