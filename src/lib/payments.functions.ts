@@ -6,13 +6,66 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 export const getPublicConfig = createServerFn({ method: "GET" }).handler(async () => {
   return {
     paystackPublicKey: process.env.PAYSTACK_PUBLIC_KEY ?? "",
-    emailjs: {
-      serviceId: process.env.EMAILJS_SERVICE_ID ?? "",
-      templateId: process.env.EMAILJS_TEMPLATE_ID ?? "",
-      publicKey: process.env.EMAILJS_PUBLIC_KEY ?? "",
-    },
   };
 });
+
+function formatNairaSrv(n: number) {
+  return `NGN ${Number(n).toLocaleString("en-NG")}`;
+}
+
+async function sendAdminEmailResend(args: {
+  orderId: string;
+  customerName: string;
+  customerEmail: string;
+  phone: string;
+  address: string;
+  total: number;
+  items: { name: string; qty: number; price: number }[];
+}) {
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.RESEND_FROM_EMAIL;
+  const to = process.env.ADMIN_NOTIFY_EMAIL;
+  if (!apiKey || !from || !to) {
+    console.warn("Resend not fully configured — skipping admin email");
+    return;
+  }
+  const itemsHtml = args.items
+    .map(
+      (it) =>
+        `<li>${it.name} &times; ${it.qty} — ${formatNairaSrv(it.price * it.qty)}</li>`,
+    )
+    .join("");
+  const html = `
+    <h2>Hi Enny,</h2>
+    <p><strong>${args.customerName}</strong> just placed a new order.</p>
+    <h3>Order #${args.orderId}</h3>
+    <ul>${itemsHtml}</ul>
+    <p><strong>Total:</strong> ${formatNairaSrv(args.total)}</p>
+    <p><strong>Address:</strong> ${args.address}<br/>
+       <strong>Phone:</strong> ${args.phone}<br/>
+       <strong>Email:</strong> ${args.customerEmail}</p>
+  `;
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from,
+        to: [to],
+        subject: `New Ennies Hair order #${args.orderId} — ${args.customerName}`,
+        html,
+      }),
+    });
+    if (!res.ok) {
+      console.error("Resend send failed", res.status, await res.text());
+    }
+  } catch (e) {
+    console.error("Resend send error", e);
+  }
+}
 
 const OrderItemSchema = z.object({
   productId: z.string().min(1),
@@ -89,6 +142,17 @@ export const verifyPaystackAndCreateOrder = createServerFn({ method: "POST" })
           .eq("id", it.productId);
       }
     }
+
+    // Best-effort admin notification via Resend
+    await sendAdminEmailResend({
+      orderId: inserted.id,
+      customerName: data.customerName,
+      customerEmail: data.customerEmail,
+      phone: data.phone,
+      address: data.address,
+      total: data.total,
+      items: data.items,
+    });
 
     return {
       id: inserted.id,
