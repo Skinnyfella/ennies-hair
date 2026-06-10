@@ -92,7 +92,10 @@ function mapOrder(r: any): Order {
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [isAdmin, setIsAdmin] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return sessionStorage.getItem("isAdmin") === "1";
+  });
   const [cart, setCart] = useState<CartItem[]>([]);
   const [wishlist, setWishlist] = useState<Product[]>([]);
   const [modal, setModal] = useState<ModalKind>({ kind: "none" });
@@ -124,17 +127,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   // --- Auth ---
   const loadProfile = useCallback(async (uid: string) => {
-    const { data: profile } = await supabase
+    // Fire both queries in parallel; update isAdmin as soon as it resolves
+    const profilePromise = supabase
       .from("profiles")
       .select("*")
       .eq("id", uid)
       .maybeSingle();
-    const { data: roles } = await supabase
+    const rolePromise = supabase
       .from("user_roles")
       .select("role")
       .eq("user_id", uid);
-    const admin = !!roles?.some((r: any) => r.role === "admin");
-    setIsAdmin(admin);
+
+    rolePromise.then(({ data: roles }) => {
+      const admin = !!roles?.some((r: any) => r.role === "admin");
+      setIsAdmin(admin);
+      try { sessionStorage.setItem("isAdmin", admin ? "1" : "0"); } catch {}
+    });
+
+    const { data: profile } = await profilePromise;
     if (profile) {
       setUser({
         id: profile.id,
@@ -155,6 +165,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       } else {
         setUser(null);
         setIsAdmin(false);
+        try { sessionStorage.removeItem("isAdmin"); } catch {}
         setCustomers([]);
         setOrders([]);
       }
