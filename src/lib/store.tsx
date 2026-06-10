@@ -228,7 +228,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         data: { name: d.name, phone: d.phone, location: d.location },
       },
     });
-    return error ? error.message : null;
+    if (!error) return null;
+    if (/weak|pwned|compromised/i.test(error.message)) {
+      return "Password is too weak. Use at least 8 characters with an uppercase letter, lowercase letter, number, and special character.";
+    }
+    return error.message;
   };
 
   const signOut = async () => { await supabase.auth.signOut(); };

@@ -21,7 +21,7 @@ export default function AdminDashboard({ onJump }: { onJump: (t: Tab) => void })
   return (
     <div className="space-y-6 max-w-6xl">
       <div>
-        <h2 className="font-serif text-3xl">Welcome back ✨</h2>
+        <h2 className="font-serif text-3xl">Welcome back</h2>
         <p className="text-sm text-muted-foreground mt-1">Here's what's happening with your store today.</p>
       </div>
 
