@@ -111,6 +111,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     refreshProducts();
+    const channel = supabase
+      .channel("products-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "products" },
+        () => { refreshProducts(); },
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, [refreshProducts]);
 
   // --- Auth ---
@@ -238,22 +247,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const toggleWishlist = (p: Product) =>
     setWishlist((w) => (w.some((x) => x.id === p.id) ? w.filter((x) => x.id !== p.id) : [...w, p]));
 
-  // --- Product CRUD (admin) ---
+  // --- Product CRUD (admin). Use .select() so RLS silent rejections surface as errors. ---
   const addProduct = async (p: Omit<Product, "id">) => {
-    const { error } = await supabase.from("products").insert(productToDb(p) as any);
+    const { data, error } = await supabase.from("products").insert(productToDb(p) as any).select();
     if (error) return error.message;
+    if (!data || data.length === 0) return "Not allowed: you must be signed in as an admin to add products.";
     await refreshProducts();
     return null;
   };
   const updateProduct = async (id: string, patch: Partial<Product>) => {
-    const { error } = await supabase.from("products").update(productToDb(patch) as any).eq("id", id);
+    const { data, error } = await supabase.from("products").update(productToDb(patch) as any).eq("id", id).select();
     if (error) return error.message;
+    if (!data || data.length === 0) return "No changes saved. Make sure you are signed in as an admin.";
     await refreshProducts();
     return null;
   };
   const deleteProduct = async (id: string) => {
-    const { error } = await supabase.from("products").delete().eq("id", id);
+    const { data, error } = await supabase.from("products").delete().eq("id", id).select();
     if (error) return error.message;
+    if (!data || data.length === 0) return "Delete blocked. Make sure you are signed in as an admin.";
     await refreshProducts();
     return null;
   };
