@@ -286,13 +286,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   };
 
   const uploadProductImage = async (file: File) => {
-    const ext = file.name.split(".").pop() || "jpg";
+    if (!file.type.startsWith("image/")) {
+      throw new Error("Please choose an image file (JPG, PNG, WebP, etc.).");
+    }
+    const MAX_MB = 10;
+    if (file.size > MAX_MB * 1024 * 1024) {
+      throw new Error(`Image is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Please upload an image under ${MAX_MB} MB.`);
+    }
+    const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
     const path = `${user?.id ?? "anon"}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
     const { error } = await supabase.storage.from("product-images").upload(path, file, {
       cacheControl: "3600",
       upsert: false,
+      contentType: file.type || undefined,
     });
-    if (error) throw error;
+    if (error) {
+      if (/row-level security|not authorized|permission/i.test(error.message)) {
+        throw new Error("You don't have permission to upload. Please sign in as an admin.");
+      }
+      throw new Error(error.message || "Upload failed. Please try again.");
+    }
     const { data } = supabase.storage.from("product-images").getPublicUrl(path);
     return data.publicUrl;
   };
