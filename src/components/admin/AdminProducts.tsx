@@ -219,13 +219,13 @@ function ProductForm({
             </select>
           </Field>
           <Field label="Stock">
-            <input type="number" min={0} className={inp} value={d.stock} onChange={(e) => set("stock", +e.target.value)} />
+            <input type="number" min={0} className={inp} value={d.stock || ""} placeholder="0" onChange={(e) => set("stock", e.target.value === "" ? 0 : +e.target.value)} />
           </Field>
           <Field label="Price (₦)">
-            <input type="number" min={0} className={inp} value={d.price} onChange={(e) => set("price", +e.target.value)} />
+            <input type="number" min={0} className={inp} value={d.price || ""} placeholder="0" onChange={(e) => set("price", e.target.value === "" ? 0 : +e.target.value)} />
           </Field>
           <Field label="Original price (₦)">
-            <input type="number" min={0} className={inp} value={d.originalPrice} onChange={(e) => set("originalPrice", +e.target.value)} />
+            <input type="number" min={0} className={inp} value={d.originalPrice || ""} placeholder="0" onChange={(e) => set("originalPrice", e.target.value === "" ? 0 : +e.target.value)} />
           </Field>
           <Field label="Length">
             <input className={inp} value={d.length} onChange={(e) => set("length", e.target.value)} placeholder='e.g. 22"' />
