@@ -50,7 +50,36 @@ export const verifyPaystackAndCreateOrder = createServerFn({ method: "POST" })
     if (!body?.status || tx?.status !== "success") {
       throw new Error("Payment was not successful");
     }
-    const expectedKobo = Math.round(data.total * 100);
+    const { supabase, userId } = context;
+
+    // SECURITY: Re-fetch authoritative prices from DB; never trust client prices/total.
+    const ids = Array.from(new Set(data.items.map((i) => i.productId)));
+    const { data: dbProducts, error: prodErr } = await supabase
+      .from("products")
+      .select("id, price, stock, name")
+      .in("id", ids);
+    if (prodErr) throw new Error("Could not verify product prices");
+    if (!dbProducts || dbProducts.length !== ids.length) {
+      throw new Error("One or more products no longer exist");
+    }
+    const priceMap = new Map<string, number>(
+      dbProducts.map((p: any) => [p.id as string, Number(p.price)]),
+    );
+    const stockMap = new Map<string, number>(
+      dbProducts.map((p: any) => [p.id as string, Number(p.stock)]),
+    );
+
+    let serverTotal = 0;
+    const verifiedItems = data.items.map((it) => {
+      const dbPrice = priceMap.get(it.productId);
+      const dbStock = stockMap.get(it.productId) ?? 0;
+      if (dbPrice === undefined) throw new Error("Invalid product in order");
+      if (it.qty > dbStock) throw new Error(`Insufficient stock for ${it.name}`);
+      serverTotal += dbPrice * it.qty;
+      return { ...it, price: dbPrice };
+    });
+
+    const expectedKobo = Math.round(serverTotal * 100);
     if (Number(tx.amount) !== expectedKobo) {
       throw new Error("Payment amount mismatch");
     }
@@ -58,7 +87,6 @@ export const verifyPaystackAndCreateOrder = createServerFn({ method: "POST" })
       throw new Error(`Unexpected currency: ${tx.currency}`);
     }
 
-    const { supabase, userId } = context;
     const { data: inserted, error } = await supabase
       .from("orders")
       .insert({
@@ -67,8 +95,8 @@ export const verifyPaystackAndCreateOrder = createServerFn({ method: "POST" })
         customer_email: data.customerEmail,
         phone: data.phone,
         address: data.address,
-        items: data.items as any,
-        total: data.total,
+        items: verifiedItems as any,
+        total: serverTotal,
         status: "Paid",
       } as any)
       .select()

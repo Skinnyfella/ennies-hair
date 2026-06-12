@@ -92,10 +92,8 @@ function mapOrder(r: any): Order {
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [isAdmin, setIsAdmin] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return sessionStorage.getItem("isAdmin") === "1";
-  });
+  // SECURITY: never seed from client storage — always derive from server role query.
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [wishlist, setWishlist] = useState<Product[]>([]);
   const [modal, setModal] = useState<ModalKind>({ kind: "none" });
@@ -141,7 +139,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     rolePromise.then(({ data: roles }) => {
       const admin = !!roles?.some((r: any) => r.role === "admin");
       setIsAdmin(admin);
-      try { sessionStorage.setItem("isAdmin", admin ? "1" : "0"); } catch {}
     });
 
     const { data: profile } = await profilePromise;
@@ -165,7 +162,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       } else {
         setUser(null);
         setIsAdmin(false);
-        try { sessionStorage.removeItem("isAdmin"); } catch {}
         setCustomers([]);
         setOrders([]);
       }
