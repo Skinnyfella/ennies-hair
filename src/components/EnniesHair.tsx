@@ -428,6 +428,7 @@ function AuthModal({ initialTab }: { initialTab: "login" | "signup" }) {
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
   const [signupForm, setSignupForm] = useState({ name: "", email: "", phone: "", location: "", password: "" });
   const [forgotEmail, setForgotEmail] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const [busy, setBusy] = useState(false);
   const submit = async (e: React.FormEvent) => {
@@ -489,7 +490,13 @@ function AuthModal({ initialTab }: { initialTab: "login" | "signup" }) {
           </>
         )}
         {tab !== "forgot" && (
-          <Input type="password" placeholder="Password *" value={tab === "login" ? loginForm.password : signupForm.password} onChange={(v) => (tab === "login" ? setLoginForm({ ...loginForm, password: v }) : setSignupForm({ ...signupForm, password: v }))} />
+          <PasswordInput
+            placeholder="Password *"
+            value={tab === "login" ? loginForm.password : signupForm.password}
+            onChange={(v) => (tab === "login" ? setLoginForm({ ...loginForm, password: v }) : setSignupForm({ ...signupForm, password: v }))}
+            show={showPassword}
+            onToggle={() => setShowPassword((s) => !s)}
+          />
         )}
         {err && <p className="text-sm text-destructive">{err}</p>}
         {info && <p className="text-sm text-burgundy">{info}</p>}
@@ -532,6 +539,39 @@ function Input({
       onChange={(e) => onChange(e.target.value)}
       className="w-full px-4 py-3 rounded-xl border border-border bg-background focus:border-burgundy focus:outline-none focus:ring-2 focus:ring-burgundy/20 text-sm"
     />
+  );
+}
+
+function PasswordInput({
+  value,
+  onChange,
+  show,
+  onToggle,
+  ...rest
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  show: boolean;
+  onToggle: () => void;
+} & Omit<React.InputHTMLAttributes<HTMLInputElement>, "type" | "onChange" | "value">) {
+  return (
+    <div className="relative">
+      <input
+        {...rest}
+        type={show ? "text" : "password"}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full px-4 py-3 pr-12 rounded-xl border border-border bg-background focus:border-burgundy focus:outline-none focus:ring-2 focus:ring-burgundy/20 text-sm"
+      />
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-label={show ? "Hide password" : "Show password"}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-burgundy transition"
+      >
+        <i className={show ? "fa-solid fa-eye-slash" : "fa-solid fa-eye"} />
+      </button>
+    </div>
   );
 }
 
