@@ -278,17 +278,7 @@ function ProductCard({ product }: { product: Product }) {
           <span className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-foreground text-background text-[10px] font-semibold uppercase tracking-wider">
             Out of stock
           </span>
-        ) : (
-          <span
-            className={`absolute top-3 right-12 px-2.5 py-1 rounded-full text-[10px] font-semibold ${
-              product.stock <= 3
-                ? "bg-destructive/10 text-destructive"
-                : "bg-success/10 text-success"
-            }`}
-          >
-            {product.stock <= 3 ? `Only ${product.stock} left!` : `${product.stock} in stock`}
-          </span>
-        )}
+        ) : null}
         {!outOfStock && (
           <button
             aria-label="Add to wishlist"
@@ -306,7 +296,20 @@ function ProductCard({ product }: { product: Product }) {
         )}
       </div>
       <div className="p-4">
-        <div className="text-[11px] uppercase tracking-wider text-muted-foreground">{product.type}</div>
+        <div className="flex items-center justify-between">
+          <div className="text-[11px] uppercase tracking-wider text-muted-foreground">{product.type}</div>
+          {!outOfStock && (
+            <span
+              className={`text-[10px] font-semibold px-2 py-1 rounded ${
+                product.stock <= 3
+                  ? "bg-destructive/10 text-destructive"
+                  : "bg-success/10 text-success"
+              }`}
+            >
+              {product.stock <= 3 ? `Only ${product.stock} left!` : `${product.stock} in stock`}
+            </span>
+          )}
+        </div>
         <h3 className="font-serif text-lg mt-1">{product.name}</h3>
         <div className="mt-2 flex items-baseline gap-2">
           <span className="text-burgundy font-semibold">{formatNaira(product.price)}</span>
@@ -364,8 +367,8 @@ function Footer() {
             Premium hair collections for the modern woman. Quality you can feel, beauty you can see.
           </p>
           <div className="mt-5 flex gap-3 text-burgundy">
-            <a href="#" aria-label="Instagram" className="w-9 h-9 grid place-items-center rounded-full bg-beige/10 hover:bg-burgundy hover:text-primary-foreground transition"><i className="fa-brands fa-instagram" /></a>
-            <a href="#" aria-label="TikTok" className="w-9 h-9 grid place-items-center rounded-full bg-beige/10 hover:bg-burgundy hover:text-primary-foreground transition"><i className="fa-brands fa-tiktok" /></a>
+            <a href="https://www.instagram.com/eni_the_stylist/" aria-label="Instagram" className="w-9 h-9 grid place-items-center rounded-full bg-beige/10 hover:bg-burgundy hover:text-primary-foreground transition"><i className="fa-brands fa-instagram" /></a>
+            <a href="https://www.tiktok.com/@styled_by_ennie" aria-label="TikTok" className="w-9 h-9 grid place-items-center rounded-full bg-beige/10 hover:bg-burgundy hover:text-primary-foreground transition"><i className="fa-brands fa-tiktok" /></a>
             <a href="https://wa.me/2348027070110" aria-label="WhatsApp" className="w-9 h-9 grid place-items-center rounded-full bg-beige/10 hover:bg-burgundy hover:text-primary-foreground transition"><i className="fa-brands fa-whatsapp" /></a>
           </div>
         </div>
