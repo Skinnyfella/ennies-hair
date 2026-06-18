@@ -7,6 +7,7 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies & build output
 node_modules
 dist
 dist-ssr
@@ -15,19 +16,36 @@ dist-ssr
 .tanstack/**
 .nitro
 *.local
+*.tsbuildinfo
+coverage
 
 # Wrangler / Cloudflare
 .wrangler/
 .dev.vars
 
-# Editor directories and files
+# Environment (never commit secrets)
+.env
+.env.*
+!.env.example
+
+# Lockfiles — this project uses Bun (see SELF_HOSTING.md)
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# Editor / IDE
 .vscode/*
 !.vscode/extensions.json
 .idea
+.cursor/
+
+# OS files
 .DS_Store
+Thumbs.db
+Desktop.ini
+ehthumbs.db
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
-.env
