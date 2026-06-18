@@ -9,6 +9,10 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
 // @cloudflare/vite-plugin builds from this — wrangler.jsonc main alone is insufficient.
 export default defineConfig({
+  // Force Nitro with the Vercel preset so SSR routes (/admin, /reset-password, etc.)
+  // work on Vercel. Without this, Lovable's config skips Nitro outside its sandbox
+  // and direct visits to non-root paths return 404.
+  nitro: { preset: "vercel" },
   tanstackStart: {
     server: { entry: "server" },
   },
