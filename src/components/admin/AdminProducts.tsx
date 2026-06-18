@@ -4,6 +4,13 @@ import { formatNaira, type Product, type Category } from "@/lib/products";
 
 const CATS: Category[] = ["Wigs", "Bundles", "Braiding", "Accessories"];
 
+const TEXTURES = [
+  "Straight hair",
+  "Wavy hair",
+  "Curly hair",
+  "Coily (Kinky) hair",
+] as const;
+
 type Draft = Omit<Product, "id">;
 
 const emptyDraft: Draft = {
@@ -16,7 +23,7 @@ const emptyDraft: Draft = {
   stock: 0,
   length: "",
   texture: "",
-  hairType: "",
+  hairType: "Wigs",
   description: "",
 };
 
@@ -214,7 +221,14 @@ function ProductForm({
             <input className={inp} value={d.name} onChange={(e) => set("name", e.target.value)} />
           </Field>
           <Field label="Category">
-            <select className={inp} value={d.type} onChange={(e) => set("type", e.target.value as Category)}>
+            <select
+              className={inp}
+              value={d.type}
+              onChange={(e) => {
+                const category = e.target.value as Category;
+                setD((p) => ({ ...p, type: category, hairType: category }));
+              }}
+            >
               {CATS.map((c) => <option key={c}>{c}</option>)}
             </select>
           </Field>
@@ -231,10 +245,17 @@ function ProductForm({
             <input className={inp} value={d.length} onChange={(e) => set("length", e.target.value)} placeholder='e.g. 22"' />
           </Field>
           <Field label="Texture">
-            <input className={inp} value={d.texture} onChange={(e) => set("texture", e.target.value)} />
+            <select className={inp} value={d.texture} onChange={(e) => set("texture", e.target.value)}>
+              <option value="">Select texture</option>
+              {TEXTURES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
           </Field>
           <Field label="Hair type" full>
-            <input className={inp} value={d.hairType} onChange={(e) => set("hairType", e.target.value)} />
+            <input className={inp} value={d.hairType} readOnly aria-readonly />
           </Field>
 
           <Field label="Main image" full>
