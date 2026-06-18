@@ -420,6 +420,47 @@ function ModalShell({ children, onClose, wide = false }: { children: React.React
 }
 
 /* ---------- Auth modal ---------- */
+function checkPasswordStrength(password: string) {
+  return {
+    minLength: password.length >= 8,
+    uppercase: /[A-Z]/.test(password),
+    lowercase: /[a-z]/.test(password),
+    number: /\d/.test(password),
+    special: /[^A-Za-z0-9]/.test(password),
+  };
+}
+
+function PasswordStrengthHint({ password }: { password: string }) {
+  const checks = checkPasswordStrength(password);
+  const strong = Object.values(checks).every(Boolean);
+  const items = [
+    { ok: checks.minLength, label: "8+ characters" },
+    { ok: checks.uppercase, label: "Uppercase letter" },
+    { ok: checks.lowercase, label: "Lowercase letter" },
+    { ok: checks.number, label: "Number" },
+    { ok: checks.special, label: "Special character" },
+  ];
+
+  return (
+    <div className="mt-1.5 px-1">
+      <p className={`text-xs font-medium ${strong ? "text-emerald-700" : "text-burgundy"}`}>
+        {strong ? "Strong password" : "Password not strong yet"}
+      </p>
+      <ul className="mt-1 space-y-0.5">
+        {items.map((item) => (
+          <li
+            key={item.label}
+            className={`text-xs flex items-center gap-1.5 ${item.ok ? "text-emerald-700" : "text-muted-foreground"}`}
+          >
+            <i className={`fa-solid ${item.ok ? "fa-circle-check" : "fa-circle"} text-[10px]`} />
+            {item.label}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function AuthModal({ initialTab }: { initialTab: "login" | "signup" }) {
   const { signIn, signUp, setModal } = useStore();
   const [tab, setTab] = useState<"login" | "signup" | "forgot">(initialTab);
@@ -486,17 +527,29 @@ function AuthModal({ initialTab }: { initialTab: "login" | "signup" }) {
         {tab === "signup" && (
           <>
             <Input placeholder="Phone number" value={signupForm.phone} onChange={(v) => setSignupForm({ ...signupForm, phone: v })} />
-            <Input placeholder="Location / Address" value={signupForm.location} onChange={(v) => setSignupForm({ ...signupForm, location: v })} />
+            <div>
+              <Input placeholder="Location / Address" value={signupForm.location} onChange={(v) => setSignupForm({ ...signupForm, location: v })} />
+              {signupForm.location.length > 0 && (
+                <p className="mt-1.5 px-1 text-xs text-muted-foreground">
+                  Use your real delivery address (street, area, city). Avoid placeholders like &quot;No 1&quot; or fake locations.
+                </p>
+              )}
+            </div>
           </>
         )}
         {tab !== "forgot" && (
-          <PasswordInput
-            placeholder="Password *"
-            value={tab === "login" ? loginForm.password : signupForm.password}
-            onChange={(v) => (tab === "login" ? setLoginForm({ ...loginForm, password: v }) : setSignupForm({ ...signupForm, password: v }))}
-            show={showPassword}
-            onToggle={() => setShowPassword((s) => !s)}
-          />
+          <div>
+            <PasswordInput
+              placeholder="Password *"
+              value={tab === "login" ? loginForm.password : signupForm.password}
+              onChange={(v) => (tab === "login" ? setLoginForm({ ...loginForm, password: v }) : setSignupForm({ ...signupForm, password: v }))}
+              show={showPassword}
+              onToggle={() => setShowPassword((s) => !s)}
+            />
+            {tab === "signup" && signupForm.password.length > 0 && (
+              <PasswordStrengthHint password={signupForm.password} />
+            )}
+          </div>
         )}
         {err && <p className="text-sm text-destructive">{err}</p>}
         {info && <p className="text-sm text-burgundy">{info}</p>}

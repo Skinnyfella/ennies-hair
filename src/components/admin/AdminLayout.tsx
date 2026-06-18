@@ -1,5 +1,5 @@
 import { useState, ReactNode } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { useStore } from "@/lib/store";
 import AdminDashboard from "./AdminDashboard";
 import AdminProducts from "./AdminProducts";
@@ -24,12 +24,6 @@ export default function AdminLayout() {
           <p className="mt-3 text-sm text-muted-foreground">
             Sign in with the administrator account to manage products, orders, and customers.
           </p>
-          <Link
-            to="/"
-            className="mt-6 inline-flex items-center gap-2 px-6 py-3 rounded-full bg-burgundy text-primary-foreground hover:bg-burgundy-dark transition"
-          >
-            <i className="fa-solid fa-arrow-left" /> Back to store
-          </Link>
         </div>
       </div>
     );
@@ -86,12 +80,6 @@ export default function AdminLayout() {
             <h1 className="font-serif text-xl capitalize hidden md:block">{tab}</h1>
           </div>
           <div className="flex items-center gap-2">
-            <Link
-              to="/"
-              className="text-sm px-4 py-2 rounded-full border border-border hover:border-burgundy hover:text-burgundy transition flex items-center gap-2"
-            >
-              <i className="fa-solid fa-arrow-left" /> <span className="hidden sm:inline">Back to store</span>
-            </Link>
             <button
               onClick={() => { signOut(); navigate({ to: "/" }); }}
               className="text-sm px-4 py-2 rounded-full bg-burgundy text-primary-foreground hover:bg-burgundy-dark transition flex items-center gap-2"
