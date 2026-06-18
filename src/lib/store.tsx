@@ -255,8 +255,37 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const clearCart = () => setCart([]);
 
   const inWishlist = (id: string) => wishlist.some((p) => p.id === id);
-  const toggleWishlist = (p: Product) =>
-    setWishlist((w) => (w.some((x) => x.id === p.id) ? w.filter((x) => x.id !== p.id) : [...w, p]));
+  const toggleWishlist = (p: Product) => {
+    const exists = wishlist.some((x) => x.id === p.id);
+    setWishlist((w) => (exists ? w.filter((x) => x.id !== p.id) : [...w, p]));
+    if (!user) return;
+    if (exists) {
+      supabase.from("wishlists").delete().eq("user_id", user.id).eq("product_id", p.id).then(({ error }) => {
+        if (error) setWishlist((w) => (w.some((x) => x.id === p.id) ? w : [...w, p]));
+      });
+    } else {
+      supabase.from("wishlists").insert({ user_id: user.id, product_id: p.id } as any).then(({ error }) => {
+        if (error && !/duplicate/i.test(error.message)) setWishlist((w) => w.filter((x) => x.id !== p.id));
+      });
+    }
+  };
+
+  // Load wishlist from DB on sign-in; clear on sign-out. Reconcile when products load.
+  useEffect(() => {
+    if (!user) { setWishlist([]); return; }
+    let cancelled = false;
+    supabase.from("wishlists").select("product_id").eq("user_id", user.id).then(({ data }) => {
+      if (cancelled || !data) return;
+      const ids = new Set(data.map((r: any) => r.product_id));
+      setWishlist((current) => {
+        const fromProducts = products.filter((p) => ids.has(p.id));
+        // keep any local items already present that match db
+        const merged = fromProducts.length ? fromProducts : current.filter((p) => ids.has(p.id));
+        return merged;
+      });
+    });
+    return () => { cancelled = true; };
+  }, [user, products]);
 
   // --- Product CRUD (admin). Use .select() so RLS silent rejections surface as errors. ---
   const addProduct = async (p: Omit<Product, "id">) => {
