@@ -226,8 +226,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   };
 
   const signUp: StoreCtx["signUp"] = async (d) => {
-    const redirectUrl = `${window.location.origin}/`;
-    const { error } = await supabase.auth.signUp({
+    const redirectUrl = `${window.location.origin}/auth/callback`;
+    const { data, error } = await supabase.auth.signUp({
       email: d.email,
       password: d.password,
       options: {
@@ -235,7 +235,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         data: { name: d.name, phone: d.phone, location: d.location },
       },
     });
-    if (!error) return null;
+    if (!error) {
+      if (data.user && !data.session) return "VERIFY_EMAIL_SENT";
+      return null;
+    }
     if (/weak|pwned|compromised/i.test(error.message)) {
       return "Password is too weak. Use at least 8 characters with an uppercase letter, lowercase letter, number, and special character.";
     }

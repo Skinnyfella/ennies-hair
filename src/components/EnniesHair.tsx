@@ -430,9 +430,24 @@ function checkPasswordStrength(password: string) {
   };
 }
 
+function isPasswordStrong(password: string) {
+  const checks = checkPasswordStrength(password);
+  return Object.values(checks).every(Boolean);
+}
+
+function isValidSignupAddress(address: string) {
+  const trimmed = address.trim();
+  if (trimmed.length < 5) return false;
+  if (!/\d/.test(trimmed)) return false;
+  if (!/[a-zA-Z]/.test(trimmed)) return false;
+  if (/^\d+$/.test(trimmed)) return false;
+  if (/^no\.?\s*\d+$/i.test(trimmed)) return false;
+  return true;
+}
+
 function PasswordStrengthHint({ password }: { password: string }) {
   const checks = checkPasswordStrength(password);
-  const strong = Object.values(checks).every(Boolean);
+  const strong = isPasswordStrong(password);
   const items = [
     { ok: checks.minLength, label: "8+ characters" },
     { ok: checks.uppercase, label: "Uppercase letter" },
@@ -472,6 +487,12 @@ function AuthModal({ initialTab }: { initialTab: "login" | "signup" }) {
   const [showPassword, setShowPassword] = useState(false);
 
   const [busy, setBusy] = useState(false);
+  const signupReady =
+    signupForm.name.trim().length > 0 &&
+    signupForm.email.trim().length > 0 &&
+    isPasswordStrong(signupForm.password) &&
+    isValidSignupAddress(signupForm.location);
+  const submitDisabled = busy || (tab === "signup" && !signupReady);
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErr("");
@@ -484,7 +505,15 @@ function AuthModal({ initialTab }: { initialTab: "login" | "signup" }) {
         setModal({ kind: "none" });
       } else if (tab === "signup") {
         if (!signupForm.name || !signupForm.email || !signupForm.password) return setErr("Please fill all required fields.");
+        if (!isPasswordStrong(signupForm.password)) return setErr("Password does not meet the requirements.");
+        if (!isValidSignupAddress(signupForm.location)) return setErr("Enter a real delivery address with a street number and area name.");
         const m = await signUp(signupForm);
+        if (m === "VERIFY_EMAIL_SENT") {
+          setInfo(`A verification email has been sent to ${signupForm.email}. Please check your inbox and spam folder, then sign in once your email is confirmed.`);
+          setTab("login");
+          setSignupForm({ name: "", email: "", phone: "", location: "", password: "" });
+          return;
+        }
         if (m) return setErr(m);
         setModal({ kind: "none" });
       } else {
@@ -528,10 +557,12 @@ function AuthModal({ initialTab }: { initialTab: "login" | "signup" }) {
           <>
             <Input placeholder="Phone number" value={signupForm.phone} onChange={(v) => setSignupForm({ ...signupForm, phone: v })} />
             <div>
-              <Input placeholder="Location / Address" value={signupForm.location} onChange={(v) => setSignupForm({ ...signupForm, location: v })} />
+              <Input placeholder="Location / Address *" value={signupForm.location} onChange={(v) => setSignupForm({ ...signupForm, location: v })} />
               {signupForm.location.length > 0 && (
-                <p className="mt-1.5 px-1 text-xs text-muted-foreground">
-                  Use your real delivery address (street, area, city). Avoid placeholders like &quot;No 1&quot; or fake locations.
+                <p className={`mt-1.5 px-1 text-xs ${isValidSignupAddress(signupForm.location) ? "text-emerald-700" : "text-muted-foreground"}`}>
+                  {isValidSignupAddress(signupForm.location)
+                    ? "Address looks good."
+                    : "Include a street number and area name (e.g. 12 Admiralty Way, Lekki). Avoid placeholders like \"No 1\"."}
                 </p>
               )}
             </div>
@@ -552,8 +583,13 @@ function AuthModal({ initialTab }: { initialTab: "login" | "signup" }) {
           </div>
         )}
         {err && <p className="text-sm text-destructive">{err}</p>}
-        {info && <p className="text-sm text-burgundy">{info}</p>}
-        <button disabled={busy} className="w-full py-3 rounded-full bg-burgundy text-primary-foreground hover:bg-burgundy-dark transition disabled:opacity-60">
+        {info && (
+          <div className="rounded-xl border border-burgundy/30 bg-burgundy/5 px-4 py-3 text-sm text-burgundy flex gap-3 items-start">
+            <i className="fa-solid fa-circle-check mt-0.5 shrink-0" />
+            <span>{info}</span>
+          </div>
+        )}
+        <button disabled={submitDisabled} className="w-full py-3 rounded-full bg-burgundy text-primary-foreground hover:bg-burgundy-dark transition disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-burgundy">
           {busy ? "Please wait…" : tab === "login" ? "Sign In" : tab === "signup" ? "Create Account" : "Send reset link"}
         </button>
         {tab === "login" && (
@@ -754,9 +790,23 @@ function OrderModal({ product, qty }: { product: Product; qty: number }) {
 
   const pay = async () => {
     setErr("");
+    if (!user) {
+      setErr("Please sign in to complete your order.");
+      setModal({ kind: "auth", tab: "login" });
+      return;
+    }
     if (!f.name || !f.phone || !f.address) return setErr("Please fill all required fields.");
     if (!f.email && !user?.email) return setErr("Email is required for payment.");
+
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError || !sessionData.session) {
+      setErr("Your session expired. Please sign in again.");
+      setModal({ kind: "auth", tab: "login" });
+      return;
+    }
+
     setBusy(true);
+    let paymentCompleted = false;
     try {
       const cfg = await fetchConfig();
       if (!cfg.paystackPublicKey) {
@@ -768,18 +818,19 @@ function OrderModal({ product, qty }: { product: Product; qty: number }) {
 
       const handler = window.PaystackPop.setup({
         key: cfg.paystackPublicKey,
-        email: f.email || user!.email,
+        email: f.email || user.email,
         amount: Math.round(total * 100),
         currency: "NGN",
+        ref: `EH-${user.id.slice(0, 8)}-${Date.now()}`,
         callback: (resp) => {
-          // Verify on server, then save order
+          paymentCompleted = true;
           (async () => {
             try {
               const order = await verifyOrder({
                 data: {
                   reference: resp.reference,
                   customerName: f.name,
-                  customerEmail: f.email || user!.email,
+                  customerEmail: f.email || user.email,
                   phone: f.phone,
                   address: f.address,
                   total,
@@ -790,22 +841,24 @@ function OrderModal({ product, qty }: { product: Product; qty: number }) {
               await refreshProducts();
               clearCart();
               setModal({ kind: "thanks" });
-            } catch (e: any) {
-              setErr(e?.message ?? "Payment verification failed.");
+            } catch (e: unknown) {
+              const msg = e instanceof Error ? e.message : "Payment verification failed.";
+              setErr(msg);
             } finally {
               setBusy(false);
             }
           })();
         },
         onClose: () => {
+          if (paymentCompleted) return;
           setBusy(false);
           setErr("Payment cancelled.");
         },
       });
       handler.openIframe();
-    } catch (e: any) {
+    } catch (e: unknown) {
       setBusy(false);
-      setErr(e?.message ?? "Could not start payment.");
+      setErr(e instanceof Error ? e.message : "Could not start payment.");
     }
   };
 
