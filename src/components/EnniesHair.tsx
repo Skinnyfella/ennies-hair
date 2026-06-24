@@ -197,13 +197,13 @@ function Hero() {
               href="#shop"
               className="px-7 py-3 rounded-full bg-white text-[rgb(101,0,28)] hover:bg-beige transition flex items-center gap-2 shadow-lg font-medium"
             >
-              <i className="fa-solid fa-bag-shopping" /> Shop Now
+              <i className="fa-solid fa-bag-shopping text-[rgb(101,0,28)]" /> Shop Now
             </a>
             <button
               onClick={() => document.querySelector<HTMLButtonElement>("[data-join]")?.click()}
-              className="px-7 py-3 rounded-full border border-white/40 text-white hover:bg-white/10 transition flex items-center gap-2"
+              className="px-7 py-3 rounded-full bg-white text-[rgb(101,0,28)] hover:bg-beige transition flex items-center gap-2 shadow-lg font-medium"
             >
-              <i className="fa-regular fa-user" /> Join Us
+              <i className="fa-regular fa-user text-[rgb(101,0,28)]" /> Join Us
             </button>
           </div>
           <div className="mt-10 grid grid-cols-3 max-w-md mx-auto lg:mx-0 gap-3 sm:gap-4">
@@ -212,9 +212,9 @@ function Hero() {
               { n: "100%", l: "Virgin Hair" },
               { n: "Fast", l: "Delivery" },
             ].map((s) => (
-              <div key={s.l} className="rounded-2xl bg-white/10 border border-white/15 px-3 py-4 sm:py-5">
-                <div className="font-serif text-xl sm:text-2xl text-white">{s.n}</div>
-                <div className="text-[11px] sm:text-xs text-white/70 mt-1">{s.l}</div>
+              <div key={s.l} className="rounded-3xl bg-white/90 border border-white/30 px-4 py-5 sm:px-5 sm:py-6 shadow-[0_18px_50px_-30px_rgba(0,0,0,0.45)]">
+                <div className="font-serif text-xl sm:text-2xl text-[rgb(101,0,28)]">{s.n}</div>
+                <div className="text-[11px] sm:text-xs text-[rgb(101,0,28)]/80 mt-1 uppercase tracking-[0.08em]">{s.l}</div>
               </div>
             ))}
           </div>
