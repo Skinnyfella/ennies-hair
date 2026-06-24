@@ -391,7 +391,7 @@ function Trust() {
   const items = [
     { i: "fa-shield-halved", t: "Authentic Hair", s: "100% Virgin & Remy" },
     { i: "fa-truck-fast", t: "Fast Delivery", s: "Nationwide shipping" },
-    { i: "fa-rotate-left", t: "Easy Returns", s: "7-day hassle-free" },
+    { i: "fa-rotate-left", t: "Easy Returns", s: "24 hours hassle-free" },
     { i: "fa-headset", t: "24/7 Support", s: "Always here for you" },
   ];
   return (
