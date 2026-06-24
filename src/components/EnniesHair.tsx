@@ -9,8 +9,11 @@ import {
   getPublicConfig,
   verifyPaystackAndCreateOrder,
 } from "@/lib/payments.functions";
-import logo from "/logo.png?url";
-import heroModel from "/products/product-1.jpg?url";
+import heroModel from "/products/logo1.png?url";
+import heroModel2 from "/products/logo2.png?url";
+import heroModel3 from "/products/logo3.png?url";
+import heroModel4 from "/products/logo4.png?url";
+import heroModel5 from "/products/logo5.png?url";
 
 declare global {
   interface Window {
@@ -128,12 +131,48 @@ function IconBtn({
   );
 }
 
-/* ---------- Hero + Logo Banner ---------- */
-function LogoBanner() {
+/* ---------- Hero + Slideshow ---------- */
+function HeroSlideshow({ images }: { images: string[] }) {
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    if (images.length <= 1) return;
+    const t = setInterval(() => {
+      setIndex((i) => (i + 1) % images.length);
+    }, 4000);
+    return () => clearInterval(t);
+  }, [images.length]);
+
   return (
-    <section className="pt-10 pb-2 grid place-items-center">
-      <img src={logo} alt="ENNIE'S HAIR logo" width={140} height={140} className="w-32 h-32 object-contain drop-shadow-sm" />
-    </section>
+    <div className="relative lg:h-[560px] lg:self-stretch lg:-mr-6">
+      <div className="relative w-full max-w-sm mx-auto lg:max-w-none lg:w-full lg:h-full aspect-[3/4] lg:aspect-auto rounded-3xl lg:rounded-none overflow-hidden">
+        {images.map((src, i) => (
+          <img
+            key={src}
+            src={src}
+            alt={`Luxury hair model ${i + 1}`}
+            className={`absolute inset-0 w-full h-full object-cover object-top transition-opacity duration-700 ${
+              i === index ? "opacity-100" : "opacity-0"
+            }`}
+          />
+        ))}
+      </div>
+
+      {images.length > 1 && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 lg:left-auto lg:translate-x-0 lg:right-6 flex gap-2">
+          {images.map((_, i) => (
+            <button
+              key={i}
+              aria-label={`Go to slide ${i + 1}`}
+              onClick={() => setIndex(i)}
+              className={`h-2 rounded-full transition-all ${
+                i === index ? "w-6 bg-white" : "w-2 bg-white/50"
+              }`}
+            />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -181,14 +220,8 @@ function Hero() {
           </div>
         </div>
 
-        {/* Right: model image — bleeds full height on desktop, normal card on mobile */}
-        <div className="relative lg:h-[560px] lg:self-stretch lg:-mr-6">
-          <img
-            src={heroModel}
-            alt="Model wearing luxury hair"
-            className="w-full max-w-sm mx-auto lg:max-w-none lg:w-full lg:h-full rounded-3xl lg:rounded-none object-cover object-top"
-          />
-        </div>
+        {/* Right: slideshow */}
+        <HeroSlideshow images={[heroModel, heroModel2, heroModel3]} />
       </div>
     </section>
   );
@@ -1101,7 +1134,6 @@ export default function EnniesHairApp() {
         <AdminRedirector />
         <Navbar />
         <main className="flex-1">
-          <LogoBanner />
           <Hero />
           <Marquee />
           <Shop />
