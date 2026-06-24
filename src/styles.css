@@ -43,7 +43,7 @@
 
 :root {
   --radius: 0.75rem;
-  --burgundy: oklch(0.32 0.13 15);
+  --burgundy: rgb(101, 0, 28);
   --burgundy-dark: oklch(0.26 0.11 15);
   --beige: oklch(0.96 0.015 80);
   --beige-light: oklch(0.98 0.01 80);

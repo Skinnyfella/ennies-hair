@@ -10,6 +10,7 @@ import {
   verifyPaystackAndCreateOrder,
 } from "@/lib/payments.functions";
 import logo from "/logo.png?url";
+import heroModel from "/products/product-1.jpg?url";
 
 declare global {
   interface Window {
@@ -138,39 +139,55 @@ function LogoBanner() {
 
 function Hero() {
   return (
-    <section id="top" className="relative overflow-hidden">
-      <div className="absolute inset-0 -z-10 bg-gradient-to-b from-beige-light via-background to-background" />
-      <div aria-hidden className="absolute top-20 -left-24 w-96 h-96 rounded-full bg-burgundy/10 blur-3xl animate-blob" />
-      <div aria-hidden className="absolute bottom-0 -right-24 w-[28rem] h-[28rem] rounded-full bg-beige/60 blur-3xl animate-blob" style={{ animationDelay: "3s" }} />
-      <div className="max-w-5xl mx-auto px-6 py-20 sm:py-28 text-center fade-up">
-        <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-beige border border-border text-xs uppercase tracking-[0.25em] text-burgundy">
-          <i className="fa-solid fa-crown" /> Premium Hair Collection
-        </span>
-        <h1 className="mt-8 font-serif italic font-medium text-5xl sm:text-7xl lg:text-8xl text-burgundy leading-[1.05]">
-          Confidence.<span className="block sm:inline">Beauty.</span>Luxury
-        </h1>
-        <p className="mt-6 max-w-xl mx-auto text-muted-foreground">
-          Discover our luxurious collection of wigs, bundles, and braiding hair. Quality you can feel, beauty you can see.
-        </p>
-        <div className="mt-8 flex flex-wrap justify-center gap-3">
-          <a href="#shop" className="px-7 py-3 rounded-full bg-burgundy text-primary-foreground hover:bg-burgundy-dark transition flex items-center gap-2 shadow-lg shadow-burgundy/20">
-            <i className="fa-solid fa-arrow-down" /> Shop Now
-          </a>
-          <button onClick={() => document.querySelector<HTMLButtonElement>("[data-join]")?.click()} className="px-7 py-3 rounded-full border border-border hover:border-burgundy hover:text-burgundy transition flex items-center gap-2">
-            <i className="fa-regular fa-user" /> Join Us
-          </button>
+    <section id="top" className="relative overflow-hidden bg-[rgb(101,0,28)]">
+      <div className="max-w-7xl mx-auto grid lg:grid-cols-2 items-center gap-10 lg:gap-8 px-6 sm:px-10 lg:px-12 py-14 lg:py-0 lg:min-h-[560px]">
+        {/* Left: copy */}
+        <div className="text-center lg:text-left fade-up">
+          <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 border border-white/20 text-[11px] sm:text-xs uppercase tracking-[0.25em] text-beige-light">
+            <i className="fa-solid fa-crown" /> Premium Hair Collection
+          </span>
+          <h1 className="mt-6 font-serif font-medium text-4xl sm:text-5xl lg:text-6xl text-white leading-[1.1]">
+            Luxury Hair
+            <span className="block">for Every You</span>
+          </h1>
+          <p className="mt-4 text-white/80 text-sm sm:text-base uppercase tracking-[0.3em]">
+            Confidence · Beauty · Luxury
+          </p>
+          <div className="mt-8 flex flex-wrap justify-center lg:justify-start gap-3">
+            <a
+              href="#shop"
+              className="px-7 py-3 rounded-full bg-white text-[rgb(101,0,28)] hover:bg-beige transition flex items-center gap-2 shadow-lg font-medium"
+            >
+              <i className="fa-solid fa-bag-shopping" /> Shop Now
+            </a>
+            <button
+              onClick={() => document.querySelector<HTMLButtonElement>("[data-join]")?.click()}
+              className="px-7 py-3 rounded-full border border-white/40 text-white hover:bg-white/10 transition flex items-center gap-2"
+            >
+              <i className="fa-regular fa-user" /> Join Us
+            </button>
+          </div>
+          <div className="mt-10 grid grid-cols-3 max-w-md mx-auto lg:mx-0 gap-3 sm:gap-4">
+            {[
+              { n: "100+", l: "Happy Clients" },
+              { n: "100%", l: "Virgin Hair" },
+              { n: "Fast", l: "Delivery" },
+            ].map((s) => (
+              <div key={s.l} className="rounded-2xl bg-white/10 border border-white/15 px-3 py-4 sm:py-5">
+                <div className="font-serif text-xl sm:text-2xl text-white">{s.n}</div>
+                <div className="text-[11px] sm:text-xs text-white/70 mt-1">{s.l}</div>
+              </div>
+            ))}
+          </div>
         </div>
-        <div className="mt-12 grid grid-cols-3 max-w-2xl mx-auto gap-3 sm:gap-4">
-          {[
-            { n: "100+", l: "Happy Clients" },
-            { n: "100%", l: "Virgin Hair" },
-            { n: "Fast", l: "Delivery" },
-          ].map((s) => (
-            <div key={s.l} className="rounded-2xl bg-card border border-border px-3 py-5 shadow-sm">
-              <div className="font-serif text-2xl sm:text-3xl text-burgundy">{s.n}</div>
-              <div className="text-xs sm:text-sm text-muted-foreground mt-1">{s.l}</div>
-            </div>
-          ))}
+
+        {/* Right: model image — bleeds full height on desktop, normal card on mobile */}
+        <div className="relative lg:h-[560px] lg:self-stretch lg:-mr-6">
+          <img
+            src={heroModel}
+            alt="Model wearing luxury hair"
+            className="w-full max-w-sm mx-auto lg:max-w-none lg:w-full lg:h-full rounded-3xl lg:rounded-none object-cover object-top"
+          />
         </div>
       </div>
     </section>
@@ -341,7 +358,7 @@ function Trust() {
   const items = [
     { i: "fa-shield-halved", t: "Authentic Hair", s: "100% Virgin & Remy" },
     { i: "fa-truck-fast", t: "Fast Delivery", s: "Nationwide shipping" },
-    { i: "fa-rotate-left", t: "Easy Returns", s: "24-hour hassle-free" },
+    { i: "fa-rotate-left", t: "Easy Returns", s: "7-day hassle-free" },
     { i: "fa-headset", t: "24/7 Support", s: "Always here for you" },
   ];
   return (
